@@ -1,0 +1,3071 @@
+From 371f0971b2c9f6f4d19b31c28f2f55616e819f5f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Thu, 1 Oct 2015 13:37:03 +0200
+Subject: [PATCH 10/15] OMS: tests for OverlayManagerService
+
+Co-authored-by: Martin Wallgren <martin.wallgren@sonymobile.com>
+Signed-off-by: Zoran Jovanovic <zoran.jovanovic@sony.com>
+Bug: 31052947
+Test: bit FrameworksServicesTests:com.android.server.om.{OverlayManagerSettingsTests,OverlayManagerTests,RuntimeResourceOverlayTests}
+Change-Id: Ia8c3cd3b62c0daae61de243d78318572d9ea82fa
+---
+ services/tests/servicestests/AndroidManifest.xml   |   1 +
+ services/tests/servicestests/assets/cookie.txt     |   1 +
+ .../tests/servicestests/prepare-overlay-tests.sh   |  10 +
+ .../tests/servicestests/res/drawable-nodpi/d.jpg   | Bin 0 -> 414 bytes
+ services/tests/servicestests/res/raw/app_overlay_1 | Bin 0 -> 8728 bytes
+ services/tests/servicestests/res/raw/app_overlay_2 | Bin 0 -> 8778 bytes
+ .../tests/servicestests/res/raw/some_other_app     | Bin 0 -> 4905 bytes
+ .../servicestests/res/raw/some_other_app_overlay   | Bin 0 -> 4964 bytes
+ .../tests/servicestests/res/raw/system_overlay_1   | Bin 0 -> 4983 bytes
+ .../tests/servicestests/res/raw/system_overlay_2   | Bin 0 -> 4982 bytes
+ .../tests/servicestests/res/values-sv/matrix.xml   |  19 +
+ .../tests/servicestests/res/values-sv/values.xml   |   4 +
+ services/tests/servicestests/res/values/matrix.xml |  35 ++
+ services/tests/servicestests/res/values/values.xml |  11 +
+ services/tests/servicestests/res/xml/cookie.xml    |   1 +
+ .../server/om/OverlayManagerSettingsTests.java     | 457 ++++++++++++++++
+ .../com/android/server/om/OverlayManagerTests.java | 427 +++++++++++++++
+ .../src/com/android/server/om/OverlayUtils.java    | 123 +++++
+ .../src/com/android/server/om/PackageUtils.java    | 140 +++++
+ .../server/om/RuntimeResourceOverlayTests.java     | 603 +++++++++++++++++++++
+ .../test-apks/app_overlay_1/AndroidManifest.xml    |   4 +
+ .../test-apks/app_overlay_1/assets/cookie.txt      |   1 +
+ .../servicestests/test-apks/app_overlay_1/build    |  25 +
+ .../app_overlay_1/res/drawable-nodpi/d.jpg         | Bin 0 -> 399 bytes
+ .../app_overlay_1/res/values-sv/matrix.xml         |  19 +
+ .../app_overlay_1/res/values-sv/values.xml         |   4 +
+ .../test-apks/app_overlay_1/res/values/matrix.xml  |  19 +
+ .../test-apks/app_overlay_1/res/values/values.xml  |  10 +
+ .../test-apks/app_overlay_1/res/xml/cookie.xml     |   1 +
+ .../test-apks/app_overlay_2/AndroidManifest.xml    |   4 +
+ .../test-apks/app_overlay_2/assets/cookie.txt      |   1 +
+ .../servicestests/test-apks/app_overlay_2/build    |  25 +
+ .../app_overlay_2/res/drawable-nodpi/d.jpg         | Bin 0 -> 410 bytes
+ .../app_overlay_2/res/values-sv/matrix.xml         |  19 +
+ .../app_overlay_2/res/values-sv/values.xml         |   4 +
+ .../test-apks/app_overlay_2/res/values/matrix.xml  |  19 +
+ .../test-apks/app_overlay_2/res/values/values.xml  |  12 +
+ .../test-apks/app_overlay_2/res/xml/cookie.xml     |   1 +
+ .../test-apks/other_app/AndroidManifest.xml        |   3 +
+ .../tests/servicestests/test-apks/other_app/build  |  24 +
+ .../test-apks/other_app/res/values/values.xml      |   4 +
+ .../other_app_overlay/AndroidManifest.xml          |   4 +
+ .../test-apks/other_app_overlay/build              |  24 +
+ .../other_app_overlay/res/values/values.xml        |   4 +
+ .../test-apks/system_overlay_1/AndroidManifest.xml |   4 +
+ .../servicestests/test-apks/system_overlay_1/build |  24 +
+ .../system_overlay_1/res/values/values.xml         |   4 +
+ .../test-apks/system_overlay_2/AndroidManifest.xml |   4 +
+ .../servicestests/test-apks/system_overlay_2/build |  24 +
+ .../system_overlay_2/res/values/values.xml         |   4 +
+ 50 files changed, 2127 insertions(+)
+ create mode 100644 services/tests/servicestests/assets/cookie.txt
+ create mode 100644 services/tests/servicestests/prepare-overlay-tests.sh
+ create mode 100644 services/tests/servicestests/res/drawable-nodpi/d.jpg
+ create mode 100644 services/tests/servicestests/res/raw/app_overlay_1
+ create mode 100644 services/tests/servicestests/res/raw/app_overlay_2
+ create mode 100644 services/tests/servicestests/res/raw/some_other_app
+ create mode 100644 services/tests/servicestests/res/raw/some_other_app_overlay
+ create mode 100644 services/tests/servicestests/res/raw/system_overlay_1
+ create mode 100644 services/tests/servicestests/res/raw/system_overlay_2
+ create mode 100644 services/tests/servicestests/res/values-sv/matrix.xml
+ create mode 100644 services/tests/servicestests/res/values-sv/values.xml
+ create mode 100644 services/tests/servicestests/res/values/matrix.xml
+ create mode 100644 services/tests/servicestests/res/values/values.xml
+ create mode 100644 services/tests/servicestests/res/xml/cookie.xml
+ create mode 100644 services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java
+ create mode 100644 services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+ create mode 100644 services/tests/servicestests/src/com/android/server/om/OverlayUtils.java
+ create mode 100644 services/tests/servicestests/src/com/android/server/om/PackageUtils.java
+ create mode 100644 services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/assets/cookie.txt
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/build
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/res/drawable-nodpi/d.jpg
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/matrix.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/res/values/matrix.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/res/values/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_1/res/xml/cookie.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/assets/cookie.txt
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/build
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/res/drawable-nodpi/d.jpg
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/matrix.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/res/values/matrix.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/res/values/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_2/res/xml/cookie.xml
+ create mode 100644 services/tests/servicestests/test-apks/other_app/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/other_app/build
+ create mode 100644 services/tests/servicestests/test-apks/other_app/res/values/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/other_app_overlay/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/other_app_overlay/build
+ create mode 100644 services/tests/servicestests/test-apks/other_app_overlay/res/values/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/system_overlay_1/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/system_overlay_1/build
+ create mode 100644 services/tests/servicestests/test-apks/system_overlay_1/res/values/values.xml
+ create mode 100644 services/tests/servicestests/test-apks/system_overlay_2/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/system_overlay_2/build
+ create mode 100644 services/tests/servicestests/test-apks/system_overlay_2/res/values/values.xml
+
+diff --git a/services/tests/servicestests/AndroidManifest.xml b/services/tests/servicestests/AndroidManifest.xml
+index e12032d8d4c..020222abe13 100644
+--- a/services/tests/servicestests/AndroidManifest.xml
++++ b/services/tests/servicestests/AndroidManifest.xml
+@@ -51,6 +51,7 @@
+     <uses-permission android:name="android.permission.CHANGE_CONFIGURATION" />
+     <uses-permission android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE" />
+     <uses-permission android:name="android.permission.DELETE_PACKAGES" />
++    <uses-permission android:name="android.permission.CHANGE_OVERLAY_PACKAGES" />
+ 
+     <!-- Uses API introduced in O (26) -->
+     <uses-sdk android:minSdkVersion="1"
+diff --git a/services/tests/servicestests/assets/cookie.txt b/services/tests/servicestests/assets/cookie.txt
+new file mode 100644
+index 00000000000..12f129636d1
+--- /dev/null
++++ b/services/tests/servicestests/assets/cookie.txt
+@@ -0,0 +1 @@
++KitKat
+diff --git a/services/tests/servicestests/prepare-overlay-tests.sh b/services/tests/servicestests/prepare-overlay-tests.sh
+new file mode 100644
+index 00000000000..eff8d733aac
+--- /dev/null
++++ b/services/tests/servicestests/prepare-overlay-tests.sh
+@@ -0,0 +1,10 @@
++pkgs=''
++pkgs+='res/raw/app_overlay_1 '
++pkgs+='res/raw/app_overlay_2 '
++pkgs+='res/raw/some_other_app_overlay '
++pkgs+='res/raw/system_overlay_1 '
++pkgs+='res/raw/system_overlay_2 '
++
++for pkg in $pkgs; do
++    adb push $pkg /vendor/overlay/$(basename $pkg).apk
++done
+diff --git a/services/tests/servicestests/res/drawable-nodpi/d.jpg b/services/tests/servicestests/res/drawable-nodpi/d.jpg
+new file mode 100644
+index 0000000000000000000000000000000000000000..a3f14f325b857bf952a0b09bdbec54047971b6a6
+GIT binary patch
+literal 414
+zcmex=<NpH&0WUXCHwH#VMg|WcWcdG&LD;z{HL)Z$MWH;iBtya7(>LJ%Z3brsR%R9!
+z7G_o;!OF_Y#?HgR4g~z%+?+gu{6a#4{DOkQVlv{wB2uD)f)a`nQnIr0^76vsN-9cn
+zDl&5Nav(z(fm+$w*!eg(_~b+cMdU~Z{|_(-axf?`C@?cBF)#@-G7B>PKf)jhbUy<#
+zBLf1kGBGf+u>+-K1Q?i@fxbgXGBPu;C<+=X83AP_K-v&eK>a|UF*1Q<1VNgRrC1o4
+z1r7h-V&DN<#3aZp$Y9U#MMY!sjkzfgPMS_${7g4g!pQNM-&GgoX~B-q=XQm-U!PnO
+z_<514r;PoKD~1Oq^ykHGDoF|3RFE?36!T2sRr5K8Cr-MO9~<)G#M%-$o{6DRM%t0e
+O_foPX9(dgQe-i+_7*=Kg
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/raw/app_overlay_1 b/services/tests/servicestests/res/raw/app_overlay_1
+new file mode 100644
+index 0000000000000000000000000000000000000000..cd34d2eebdac1cf18dd447b2dc69ed76a9ff63dd
+GIT binary patch
+literal 8728
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/raw/app_overlay_2 b/services/tests/servicestests/res/raw/app_overlay_2
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d7a3f1e4e5db028ffa5b10f41828d5f155957a6
+GIT binary patch
+literal 8778
+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
+PAQ`}Z4)Cuy8B+fOp-^cg
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/raw/some_other_app b/services/tests/servicestests/res/raw/some_other_app
+new file mode 100644
+index 0000000000000000000000000000000000000000..0c012b9a11a05e97c269b8783abf90abd778cf28
+GIT binary patch
+literal 4905
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/raw/some_other_app_overlay b/services/tests/servicestests/res/raw/some_other_app_overlay
+new file mode 100644
+index 0000000000000000000000000000000000000000..2b328dc519f2f734176b48065aaa10f237df601b
+GIT binary patch
+literal 4964
+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
+V3~&hWbOHbfu$=&7k&BmM{R=>3A`$=q
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/raw/system_overlay_1 b/services/tests/servicestests/res/raw/system_overlay_1
+new file mode 100644
+index 0000000000000000000000000000000000000000..d67055c6559fac3ecb5c4079bccf517210dcea88
+GIT binary patch
+literal 4983
+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
+b<NaT)!D7kOfT0Ee1b7_)V^R3)vBy6EMARD5
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/raw/system_overlay_2 b/services/tests/servicestests/res/raw/system_overlay_2
+new file mode 100644
+index 0000000000000000000000000000000000000000..e2cb960ca2d86624e4b383f04a72e5bd60c00893
+GIT binary patch
+literal 4982
+zcmeG=c{r5o+wY9AFJUIiQbRI!V=N&jOCKjRmMD&68(Vf6OUPbi%3j&Gq(ws-WRFnD
+zl2i=IR$0Q3oI=F+OsB=~oZq>=>-zrseb@Ef?{&ZT@;vwRKF|H!@BKdaYhuWNV1pnQ
+z2!M$Ci+~_k6F3CXkqbgVL}x#r0HUL_pB#bc=eXGkL2!uUYby-&he1N%`d9cN!_hDa
+zFiHeyc7%K&FGvm|K;DoOL<Eu>pmKnt^Zt-C<OlA4K;s7mf90J)e>>0?2-=8{C$J0#
+zGVWg=^?yb}17`tOK-PfL{YD46?=%3V>%W88cLq=nfC#W|e{d1M@(#csKEM}$+8+H%
+z!R;HMzcYX$zk1voashrm3H(O)yEm|<`_KvK{*;}+TEOAl5I5ky&x<ajfJ~p)cO49V
+z1hU?yqd!{-;Qt1`1{yE~ly?h&35Y)w#KJ<?i>PlO5eWosZzrOUn-iYk?dIa_=PwuJ
+z<#{Eg$$&wdyRGSdSH7ZD5jTpbxus2%f2WwGyR?Hd*?|{%RIYtQvWUl!J-_*U`6pN?
+z`xjbWb5QZCH^Z4<rm}}J@0+9?VtDLoxL41rZ&5vaxmsJWA=2VK)2Mbr4jv0h2EoZv
+z{@0G4o}I86ADhh^$-Ay@TPU|ginVkzX7G<WCM-SG)wknmqUn_Tl|N()kq!!>1|u0q
+zcGxtSSS(ak`fo9H$C+I{)ERGp2|+vl*OUDh;;jygl8lDxx4PASRSr~3nbV9~tlwm-
+zu^C%`eKd2Ky{yt~I!k@5v2`cq*V9Qfht9P~ci6f})$M(Mc->tT-y~nj!@u2}ON>u(
+z!zFwfd&b{YqYiC`Bvz9Xo7(t4S65m;!cTGQ<&hoI!)vDMrrif)smh^WxKwh;P4jbt
+zcAD=8Ry8~hkNK$iv{@K@$>P<_UKBJjWM*l7XeOo)ws{6@_do9hJs$A7=GwCQMtbsi
+zZ6kd>T{Ckzyq--ro;?~1MNX{SZxPx>m1HmQs;_EiIPHz&8%Z+~Hp2{yt*^weXj4~W
+zFb_F<Naj{L=ZYFA$;E=)HPQCExSrr0F#NnYGRH-tP}i~AlMRNzSR>gJFhU~t%cNOE
+z$5fP)_{Qw7u5Xm6P>41zGRUd<vW!6I;X~_G!ipavr2#3KqRxl=vM;(zWn8ZzgTh>9
+zAdjhj#!sBwOP$aP1#4nvd0sI8xDc$M9pFE&k^T<+SmR;cW9D*ZdNv8h#w}Q(*hRxn
+z!XYmXx5r-cHdO6)&_QLo#Mw&AS`KI~P;n287sYm6t3D7ss$nd9Aa+fdr2#cwq|9hg
+zsLEmM>!xb?*mo@`X>N0WP*SYLyN_{B!CSX(I!9xO`*PZMbaw=3vQ;K&3v^AMI(S;~
+zL*{fy;k;SEV3YD2YymohUuaCoc(=cAV!@);TAy{S_O9+sK1TIRd;R>M&Kg%}mHaNH
+z!_P3LkAG=Uns25vX6H~mvPxxW84@lzcX3xuzviQ=`_}_c+;ewYK%W)AS~+{e_Ih$I
+z%8u@qjn|HWLtxQ+!1n*MTX_EFmSbkximnd7x3?AdPxXDuO;5>n(?$-5o)xbeIvO7z
+z`-&;Yv*cxH_t9e|989lRbmQ5xEC+TeQA)6`4taMYGf62V(j~%jcWf0qVLD>>`<9)!
+za_FP75iGk^sIx`98ztZ=;fZE>eTv0T4Kw9*W0HT;SzO@4?zl+AP)u;xvf;7;ui`SQ
+z1!va9$;h#)_1d~+J~3EQcP&#A%j3<#<8m%8H46TUGbi4mg~aX4EK!=Clkb7XJn^t6
+z*gLqoJ2^SnyL0b<;^FCT?`F?3$#vr70R<^EGj^XegCBCAJcCKj*<w;k3c-kRu1L9o
+z!iQTqalKKE5--x*eHK$47j`XryfIRR+@Dm{hU>1gn+c>{iayr5RMFU9-EUq}FF<^u
+za)v!!N<Q=Q)whp{=lh=DiJfae&5=@lDl*APjwvIF+P5#>W6zYHs3&DQjguFx_SEHM
+zTdGvGvzBK1o;qIZ#nk%5A|iiEZ@zx%b=qL>Bi0<hZi@_=`mMnADp^~Z<w1VuO|>#4
+zj`lpb!lO~Mw&ct@o^R2Lw%lKH>R!l%=iGIgh(~brR-8ryE#$b-P{fL1_K@M|rUrkZ
+zxX^oX)%dW8slqK=cK7P=i0co!YUjt(f-i7=&h=r$_*<1GW(~eqn28CWOMO4Syu^$_
+z?Fl=rlS@ho_I<PWY+F84`GcodCLMVkd6pu|?UzT?>Xn+h`0niu4zIDhN_%?rY}+Mt
+zuyb15S*C<_fxEYV8&vhsfAfcS7H?KEQD{epbc;+0Q+Is)R^NxciW0}qk(m~1-1ggr
+zCTUW=!iP&e7)3d<RD{`|3|N;9de?8pJAIigKY1a9z?_81(=3b_S+#v?dWTt9bb9mD
+zZ@=oR)l)vJ^rU;eEG!+TG&#=c8uzS}j;$`R*-$z0rDh=;qG^-oCX^>GD#`|)Rw;fV
+zf5N=S_Lg*ZzvjCu^KGq<V*A;-G9qefHnZpIjHRAWFLsi7hgwl)H5GlYUrpCXSl%S%
+zTey+d8e<OBzN-&;6~Nwm%gY#JXlyETap|($=iH@&iBGh+!$<w_?sW+vd4plUQxsmT
+z(iYQm&s1nEgh<bfWDz|B7W;+ME@k+XKCgd$qhxxExTrKC+0L;Fm)(=!^y2gU<4aTH
+zdBTDR&I_t2<iTB193SZP6!`X`6HMRYP{prwduTHFc#i&ZBix-{3*5(D56ki*TnuH?
+zPj=|~1Ps@j?%X<i&tukuYlP3mV%;{GQa9nZf7!ORYVxM%j`Ej=zVqDJIJ@OH#aiB7
+zjn6)Zl@)$C>8;v9yy-47mmYTYw+qzry!V|w9g;H+8nWrt_+jbB3ehPoGHIpik@n(1
+zQB%eAEqs_}vFb^RVTJ<r#YrI-eaU%p*x;=Dv&jRyT^U`y**DeSyqgTH-?AQRU_E10
+zTrpsyLGEn(c>J*Z_=90qKKHSKLm?G+XRhdc4j^Pc(yUUVHRX&gd=BgM48OMXONE>m
+zg`Jkb{vk|dZKYF<++rLS+VIQ9AJ#Sl%c&fKVd3lznUW&`PR*mb9(e=%#n_CQzGn7c
+zBpfcDLqJeD6G&mqAX5Rrexm~CS$!n{F9vW1^pOE=5&#)Mx<dncc(p(a^-wwNp$YZa
+zn`AqkehWM`PA+Iv(nBpOts{`{F0d&9h>b?v!bUSB7cjtKa5yVekr^5L^hEDxEGHAI
+zRP2%16;2oo!3bfaE-SEOS(zA)Bbboz<7Ns-EDv2^L9!htc)Gdx5WU?93Vc`;UCE5(
+z#QOwz`xD%}(I?!TPb+X^x#)T}B=ffe&vy;`-!u$AHKJJbk2$cy_>hD@4@+9#sGOsZ
+z7j_RnCsq}!q@aw$DPfhdR{Wfb%2+k5!Z-0hb=uJ|^mYfs7$Jse7$?{a7z;ca27_{f
+z7*k6)ZB&IuZ#&O-+<?4Qj&OJpnJH+VMw3`|^6PsxP}Z2Q-oOX6Xk>d2{>-qr*ue{t
+zp5hgT$bfxCsji~>h*vQEL!oTF0*oF0pRyUw*kf~({h#SXPI#0`omW!XZ92Ombwrl6
+z96>p6%UhDseEak-u2Ajlmq{<n#=)7Fd~4V2S#u8DQo1oltFEdvK;$tOx^48zn5TW{
+zRT;pqu^miEQo2@0KKfD7myGevK6w4Sc`1k425Mqhw|~z*<N9|R*+sOqC+6ZvlX<ff
+z%uQ~ETLuMT_f}@noUAvREAvFO<ViH1WRg1BDkXC1*o=Hkk%d{WU30SUqlFF(9L8`h
+zY6Ba!h7|^ZBg}>1L!gY`7F3Mn)Jd)g6VE@KZcReRwq#<X9@E?RA)=bGQH_!Rw$Ih5
+ztfHv&|IkQ?-uA|E(3gTlFk%^Cu&wRk0p33l9x%vaziG{o`d+`$9bS6*u`dTsp&&_(
+zxPqQgYEbnrW!<|Y$bnNLawnSG3B3>Hsfwe=9<hzbp`L889kdcStjCCt&KHiZltv$E
+zio4gRFS!`=iED(HDtp{HT=dP14WdI~0NIzRT2G1=i?}AT-{Y#RuzOPKtT3h3PvK0#
+zg9GpT%0B7d`5=~_U*{cyYJgk&)<&s5SsvM7OylnrJ7>L8$>|uqg0ZEl>RVM!UJ|@4
+z5@@Y2NL+Uvj~pJhY=P%0g<izPzdiKn7Uj4iZT%hTzWb38L$ut>%WdR@{u;GZhL?Bb
+zUg+(UGk$kJ4SBf@%VnziruSLQ)Z4db&Ejh)6&4_^K^!2zu>hp!IeG!7b7csYBpH_h
+zQ|Rtt^su<--v2n~aZDzk{nN={VLl3DJXWmIPOF~l`BI>_{xO34cvqcyJ(nbGzr}7!
+z=cs^Z_exZ_g45ewrV?Yei-I0Zxg7Vp!VaL>Xr>0k$7xd!4sjM)-HP(Gv{=)1h;jBq
+z_}sLiX(aq2B95uqr4pLV!t=7I$5>0IN1lgJH!ri0T4jLaO}wnvDNhxS!wEEw2Bp>B
+z>UEML3SdZ;B}<i)dvAOceVVV8*v4kfRia6Gcds}xxFI{-|GHQ6gwv`{cmb9WZU3v!
+z?XC3C^Y|R}C#t)C*fpb+CsrbBj$;qPHhfd13qS6-^g+8)qm^1~o+Ji*0Mf?)r<4C7
+zoqYd(YMU6M&D>6+bv%6>J<v)x6GIrB4f^LlMD&>Z34i}zM7KwQKMLO~{OuJdy~6(q
+zk)Q_sH}(Es2iRWD(F@a`zy?0oKT5c5W$Ir?*k1Y2%f6qmuziGYMc`kpw;wv_)zMF2
+d1jmpc&;M!-Y9$jxx*CEQ!KDRa5zR}N{u?&t7Y6_U
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/res/values-sv/matrix.xml b/services/tests/servicestests/res/values-sv/matrix.xml
+new file mode 100644
+index 00000000000..891853edb4c
+--- /dev/null
++++ b/services/tests/servicestests/res/values-sv/matrix.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="matrix_110000">200</integer>
++    <integer name="matrix_110001">200</integer>
++    <integer name="matrix_110010">200</integer>
++    <integer name="matrix_110011">200</integer>
++    <integer name="matrix_110100">200</integer>
++    <integer name="matrix_110101">200</integer>
++    <integer name="matrix_110110">200</integer>
++    <integer name="matrix_110111">200</integer>
++    <integer name="matrix_111000">200</integer>
++    <integer name="matrix_111001">200</integer>
++    <integer name="matrix_111010">200</integer>
++    <integer name="matrix_111011">200</integer>
++    <integer name="matrix_111100">200</integer>
++    <integer name="matrix_111101">200</integer>
++    <integer name="matrix_111110">200</integer>
++    <integer name="matrix_111111">200</integer>
++</resources>
+diff --git a/services/tests/servicestests/res/values-sv/values.xml b/services/tests/servicestests/res/values-sv/values.xml
+new file mode 100644
+index 00000000000..8dd2fbd329f
+--- /dev/null
++++ b/services/tests/servicestests/res/values-sv/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="s">A</string>
++</resources>
+diff --git a/services/tests/servicestests/res/values/matrix.xml b/services/tests/servicestests/res/values/matrix.xml
+new file mode 100644
+index 00000000000..7444fe08a7c
+--- /dev/null
++++ b/services/tests/servicestests/res/values/matrix.xml
+@@ -0,0 +1,35 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="matrix_100000">100</integer>
++    <integer name="matrix_100001">100</integer>
++    <integer name="matrix_100010">100</integer>
++    <integer name="matrix_100011">100</integer>
++    <integer name="matrix_100100">100</integer>
++    <integer name="matrix_100101">100</integer>
++    <integer name="matrix_100110">100</integer>
++    <integer name="matrix_100111">100</integer>
++    <integer name="matrix_101000">100</integer>
++    <integer name="matrix_101001">100</integer>
++    <integer name="matrix_101010">100</integer>
++    <integer name="matrix_101011">100</integer>
++    <integer name="matrix_101100">100</integer>
++    <integer name="matrix_101101">100</integer>
++    <integer name="matrix_101110">100</integer>
++    <integer name="matrix_101111">100</integer>
++    <integer name="matrix_110000">100</integer>
++    <integer name="matrix_110001">100</integer>
++    <integer name="matrix_110010">100</integer>
++    <integer name="matrix_110011">100</integer>
++    <integer name="matrix_110100">100</integer>
++    <integer name="matrix_110101">100</integer>
++    <integer name="matrix_110110">100</integer>
++    <integer name="matrix_110111">100</integer>
++    <integer name="matrix_111000">100</integer>
++    <integer name="matrix_111001">100</integer>
++    <integer name="matrix_111010">100</integer>
++    <integer name="matrix_111011">100</integer>
++    <integer name="matrix_111100">100</integer>
++    <integer name="matrix_111101">100</integer>
++    <integer name="matrix_111110">100</integer>
++    <integer name="matrix_111111">100</integer>
++</resources>
+diff --git a/services/tests/servicestests/res/values/values.xml b/services/tests/servicestests/res/values/values.xml
+new file mode 100644
+index 00000000000..3dbf7c1552b
+--- /dev/null
++++ b/services/tests/servicestests/res/values/values.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="i">0</integer>
++    <string name="s">a</string>
++    <bool name="b">true</bool>
++    <integer-array name="i">
++        <item>1</item>
++        <item>2</item>
++        <item>3</item>
++    </integer-array>
++</resources>
+diff --git a/services/tests/servicestests/res/xml/cookie.xml b/services/tests/servicestests/res/xml/cookie.xml
+new file mode 100644
+index 00000000000..a6f9259839b
+--- /dev/null
++++ b/services/tests/servicestests/res/xml/cookie.xml
+@@ -0,0 +1 @@
++<cookie value="KitKat"/>
+diff --git a/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java b/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java
+new file mode 100644
+index 00000000000..e13e8610856
+--- /dev/null
++++ b/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java
+@@ -0,0 +1,457 @@
++package com.android.server.om;
++
++import static android.content.om.OverlayInfo.STATE_DISABLED;
++import static android.content.om.OverlayInfo.STATE_ENABLED;
++import static android.content.om.OverlayInfo.STATE_MISSING_TARGET;
++
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertFalse;
++import static org.junit.Assert.assertNotNull;
++import static org.junit.Assert.assertTrue;
++import static org.junit.Assert.fail;
++
++import android.annotation.NonNull;
++import android.content.om.OverlayInfo;
++import android.os.UserHandle;
++import android.support.test.runner.AndroidJUnit4;
++import android.text.TextUtils;
++import android.util.Xml;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.StringReader;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Map;
++import java.util.stream.IntStream;
++import java.util.stream.Stream;
++
++import org.xmlpull.v1.XmlPullParser;
++
++import org.junit.Before;
++import org.junit.Test;
++import org.junit.runner.RunWith;
++
++@RunWith(AndroidJUnit4.class)
++public class OverlayManagerSettingsTests {
++    private OverlayManagerSettings mSettings;
++
++    private static final OverlayInfo OVERLAY_A0 = new OverlayInfo(
++            "com.dummy.overlay_a",
++            "com.dummy.target",
++            "/data/app/com.dummy.overlay_a-1/base.apk",
++            STATE_DISABLED,
++            0);
++
++    private static final OverlayInfo OVERLAY_B0 = new OverlayInfo(
++            "com.dummy.overlay_b",
++            "com.dummy.target",
++            "/data/app/com.dummy.overlay_b-1/base.apk",
++            STATE_DISABLED,
++            0);
++
++    private static final OverlayInfo OVERLAY_C0 = new OverlayInfo(
++            "com.dummy.overlay_c",
++            "com.dummy.target",
++            "/data/app/com.dummy.overlay_c-1/base.apk",
++            STATE_DISABLED,
++            0);
++
++    private static final OverlayInfo OVERLAY_A1 = new OverlayInfo(
++            "com.dummy.overlay_a",
++            "com.dummy.target",
++            "/data/app/com.dummy.overlay_a-1/base.apk",
++            STATE_DISABLED,
++            1);
++
++    private static final OverlayInfo OVERLAY_B1 = new OverlayInfo(
++            "com.dummy.overlay_b",
++            "com.dummy.target",
++            "/data/app/com.dummy.overlay_b-1/base.apk",
++            STATE_DISABLED,
++            1);
++
++    @Before
++    public void setUp() throws Exception {
++        mSettings = new OverlayManagerSettings();
++    }
++
++    // tests: generic functionality
++
++    @Test
++    public void testSettingsInitiallyEmpty() throws Exception {
++        final int userId = 0;
++        Map<String, List<OverlayInfo>> map = mSettings.getOverlaysForUser(userId);
++        assertEquals(0, map.size());
++    }
++
++    @Test
++    public void testBasicSetAndGet() throws Exception {
++        assertDoesNotContain(mSettings, OVERLAY_A0.packageName, OVERLAY_A0.userId);
++
++        insert(OVERLAY_A0);
++        assertContains(mSettings, OVERLAY_A0);
++        OverlayInfo oi = mSettings.getOverlayInfo(OVERLAY_A0.packageName, OVERLAY_A0.userId);
++        assertEquals(OVERLAY_A0, oi);
++
++        assertTrue(mSettings.remove(OVERLAY_A0.packageName, OVERLAY_A0.userId));
++        assertDoesNotContain(mSettings, OVERLAY_A0.packageName, OVERLAY_A0.userId);
++    }
++
++    @Test
++    public void testGetUsers() throws Exception {
++        int[] users = mSettings.getUsers();
++        assertEquals(0, users.length);
++
++        insert(OVERLAY_A0);
++        users = mSettings.getUsers();
++        assertEquals(1, users.length);
++        assertContains(users, OVERLAY_A0.userId);
++
++        insert(OVERLAY_A1);
++        insert(OVERLAY_B1);
++        users = mSettings.getUsers();
++        assertEquals(2, users.length);
++        assertContains(users, OVERLAY_A0.userId);
++        assertContains(users, OVERLAY_A1.userId);
++    }
++
++    @Test
++    public void testGetOverlaysForUser() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++        insert(OVERLAY_A1);
++        insert(OVERLAY_B1);
++
++        Map<String, List<OverlayInfo>> map = mSettings.getOverlaysForUser(OVERLAY_A0.userId);
++        assertEquals(1, map.keySet().size());
++        assertTrue(map.keySet().contains(OVERLAY_A0.targetPackageName));
++
++        List<OverlayInfo> list = map.get(OVERLAY_A0.targetPackageName);
++        assertEquals(2, list.size());
++        assertTrue(list.contains(OVERLAY_A0));
++        assertTrue(list.contains(OVERLAY_B0));
++
++        // getOverlaysForUser should never return null
++        map = mSettings.getOverlaysForUser(-1);
++        assertNotNull(map);
++        assertEquals(0, map.size());
++    }
++
++    @Test
++    public void testRemoveUser() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++        insert(OVERLAY_A1);
++
++        assertContains(mSettings, OVERLAY_A0);
++        assertContains(mSettings, OVERLAY_B0);
++        assertContains(mSettings, OVERLAY_A1);
++
++        mSettings.removeUser(OVERLAY_A0.userId);
++
++        assertDoesNotContain(mSettings, OVERLAY_A0);
++        assertDoesNotContain(mSettings, OVERLAY_B0);
++        assertContains(mSettings, OVERLAY_A1);
++    }
++
++    @Test
++    public void testOrderOfNewlyAddedItems() throws Exception {
++        // new items are appended to the list
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++        insert(OVERLAY_C0);
++
++        List<OverlayInfo> list =
++                mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_B0, OVERLAY_C0);
++
++        // overlays keep their positions when updated
++        mSettings.setState(OVERLAY_B0.packageName, OVERLAY_B0.userId, STATE_ENABLED);
++        OverlayInfo oi = mSettings.getOverlayInfo(OVERLAY_B0.packageName, OVERLAY_B0.userId);
++
++        list = mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, oi, OVERLAY_C0);
++    }
++
++    @Test
++    public void testSetPriority() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++        insert(OVERLAY_C0);
++
++        List<OverlayInfo> list =
++                mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_B0, OVERLAY_C0);
++
++        boolean changed = mSettings.setPriority(OVERLAY_B0.packageName, OVERLAY_C0.packageName,
++                OVERLAY_B0.userId);
++        assertTrue(changed);
++        list = mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_C0, OVERLAY_B0);
++
++        changed = mSettings.setPriority(OVERLAY_B0.packageName, "does.not.exist", OVERLAY_B0.userId);
++        assertFalse(changed);
++        list = mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_C0, OVERLAY_B0);
++
++        OverlayInfo otherTarget = new OverlayInfo(
++                "com.dummy.overlay_other",
++                "com.dummy.some.other.target",
++                "/data/app/com.dummy.overlay_other-1/base.apk",
++                STATE_DISABLED,
++                0);
++        insert(otherTarget);
++        changed = mSettings.setPriority(OVERLAY_A0.packageName, otherTarget.packageName,
++                OVERLAY_A0.userId);
++        assertFalse(changed);
++    }
++
++    @Test
++    public void testSetLowestPriority() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++        insert(OVERLAY_C0);
++
++        List<OverlayInfo> list =
++                mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_B0, OVERLAY_C0);
++
++        boolean changed = mSettings.setLowestPriority(OVERLAY_B0.packageName, OVERLAY_B0.userId);
++        assertTrue(changed);
++
++        list = mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_B0, OVERLAY_A0, OVERLAY_C0);
++    }
++
++    @Test
++    public void testSetHighestPriority() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++        insert(OVERLAY_C0);
++
++        List<OverlayInfo> list =
++                mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_B0, OVERLAY_C0);
++
++        boolean changed = mSettings.setHighestPriority(OVERLAY_B0.packageName, OVERLAY_B0.userId);
++        assertTrue(changed);
++
++        list = mSettings.getOverlaysForTarget(OVERLAY_A0.targetPackageName, OVERLAY_A0.userId);
++        assertListsAreEqual(list, OVERLAY_A0, OVERLAY_C0, OVERLAY_B0);
++    }
++
++    // tests: persist and restore
++
++    @Test
++    public void testPersistEmpty() throws Exception {
++        ByteArrayOutputStream os = new ByteArrayOutputStream();
++        mSettings.persist(os);
++        String xml = new String(os.toByteArray(), "utf-8");
++
++        assertEquals(1, countXmlTags(xml, "overlays"));
++        assertEquals(0, countXmlTags(xml, "item"));
++    }
++
++    @Test
++    public void testPersistDifferentOverlaysSameUser() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B0);
++
++        ByteArrayOutputStream os = new ByteArrayOutputStream();
++        mSettings.persist(os);
++        final String xml = new String(os.toByteArray(), "utf-8");
++
++        assertEquals(1, countXmlTags(xml, "overlays"));
++        assertEquals(2, countXmlTags(xml, "item"));
++        assertEquals(1, countXmlAttributesWhere(xml, "item", "packageName", OVERLAY_A0.packageName));
++        assertEquals(1, countXmlAttributesWhere(xml, "item", "packageName", OVERLAY_B0.packageName));
++        assertEquals(2, countXmlAttributesWhere(xml, "item", "userId", Integer.toString(OVERLAY_A0.userId)));
++    }
++
++    @Test
++    public void testPersistSameOverlayDifferentUsers() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_A1);
++
++        ByteArrayOutputStream os = new ByteArrayOutputStream();
++        mSettings.persist(os);
++        String xml = new String(os.toByteArray(), "utf-8");
++
++        assertEquals(1, countXmlTags(xml, "overlays"));
++        assertEquals(2, countXmlTags(xml, "item"));
++        assertEquals(2, countXmlAttributesWhere(xml, "item", "packageName", OVERLAY_A0.packageName));
++        assertEquals(1, countXmlAttributesWhere(xml, "item", "userId", Integer.toString(OVERLAY_A0.userId)));
++        assertEquals(1, countXmlAttributesWhere(xml, "item", "userId", Integer.toString(OVERLAY_A1.userId)));
++    }
++
++    @Test
++    public void testPersistEnabled() throws Exception {
++        insert(OVERLAY_A0);
++        mSettings.setEnabled(OVERLAY_A0.packageName, OVERLAY_A0.userId, true);
++
++        ByteArrayOutputStream os = new ByteArrayOutputStream();
++        mSettings.persist(os);
++        String xml = new String(os.toByteArray(), "utf-8");
++
++        assertEquals(1, countXmlAttributesWhere(xml, "item", "isEnabled", "true"));
++    }
++
++    @Test
++    public void testRestoreEmpty() throws Exception {
++        final String xml =
++                "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
++                + "<overlays version=\"3\" />\n";
++        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes("utf-8"));
++
++        mSettings.restore(is);
++        assertDoesNotContain(mSettings, "com.dummy.overlay", 0);
++    }
++
++    @Test
++    public void testRestoreSingleUserSingleOverlay() throws Exception {
++        final String xml =
++                "<?xml version='1.0' encoding='utf-8' standalone='yes'?>\n"
++                + "<overlays version='3'>\n"
++                + "<item packageName='com.dummy.overlay'\n"
++                + "      userId='1234'\n"
++                + "      targetPackageName='com.dummy.target'\n"
++                + "      baseCodePath='/data/app/com.dummy.overlay-1/base.apk'\n"
++                + "      state='" + STATE_DISABLED + "'\n"
++                + "      isEnabled='false'\n"
++                + "      isStatic='false'\n"
++                + "      priority='0' />\n"
++                + "</overlays>\n";
++        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes("utf-8"));
++
++        mSettings.restore(is);
++        OverlayInfo oi = mSettings.getOverlayInfo("com.dummy.overlay", 1234);
++        assertNotNull(oi);
++        assertEquals("com.dummy.overlay", oi.packageName);
++        assertEquals("com.dummy.target", oi.targetPackageName);
++        assertEquals("/data/app/com.dummy.overlay-1/base.apk", oi.baseCodePath);
++        assertEquals(1234, oi.userId);
++        assertEquals(STATE_DISABLED, oi.state);
++        assertFalse(mSettings.getEnabled("com.dummy.overlay", 1234));
++    }
++
++    @Test
++    public void testPersistAndRestore() throws Exception {
++        insert(OVERLAY_A0);
++        insert(OVERLAY_B1);
++
++        ByteArrayOutputStream os = new ByteArrayOutputStream();
++        mSettings.persist(os);
++        String xml = new String(os.toByteArray(), "utf-8");
++        ByteArrayInputStream is = new ByteArrayInputStream(xml.getBytes("utf-8"));
++        OverlayManagerSettings newSettings = new OverlayManagerSettings();
++        newSettings.restore(is);
++
++        OverlayInfo a = newSettings.getOverlayInfo(OVERLAY_A0.packageName, OVERLAY_A0.userId);
++        assertEquals(OVERLAY_A0, a);
++
++        OverlayInfo b = newSettings.getOverlayInfo(OVERLAY_B1.packageName, OVERLAY_B1.userId);
++        assertEquals(OVERLAY_B1, b);
++    }
++
++    private int countXmlTags(String xml, String tagToLookFor) throws Exception {
++        int count = 0;
++        XmlPullParser parser = Xml.newPullParser();
++        parser.setInput(new StringReader(xml));
++        int event = parser.getEventType();
++        while (event != XmlPullParser.END_DOCUMENT) {
++            if (event == XmlPullParser.START_TAG && tagToLookFor.equals(parser.getName())) {
++                count++;
++            }
++            event = parser.next();
++        }
++        return count;
++    }
++
++    private int countXmlAttributesWhere(String xml, String tag, String attr, String value)
++        throws Exception {
++        int count = 0;
++        XmlPullParser parser = Xml.newPullParser();
++        parser.setInput(new StringReader(xml));
++        int event = parser.getEventType();
++        while (event != XmlPullParser.END_DOCUMENT) {
++            if (event == XmlPullParser.START_TAG && tag.equals(parser.getName())) {
++                String v = parser.getAttributeValue(null, attr);
++                if (value.equals(v)) {
++                    count++;
++                }
++            }
++            event = parser.next();
++        }
++        return count;
++    }
++
++    private void insert(OverlayInfo oi) throws Exception {
++        mSettings.init(oi.packageName, oi.userId, oi.targetPackageName, oi.baseCodePath, false, 0);
++        mSettings.setState(oi.packageName, oi.userId, oi.state);
++        mSettings.setEnabled(oi.packageName, oi.userId, false);
++    }
++
++    private static void assertContains(final OverlayManagerSettings settings,
++            final OverlayInfo oi) {
++        assertContains(settings, oi.packageName, oi.userId);
++    }
++
++    private static void assertContains(final OverlayManagerSettings settings,
++            final String packageName, int userId) {
++        try {
++            settings.getOverlayInfo(packageName, userId);
++        } catch (OverlayManagerSettings.BadKeyException e) {
++            fail(String.format("settings does not contain packageName=%s userId=%d",
++                        packageName, userId));
++        }
++    }
++
++    private static void assertDoesNotContain(final OverlayManagerSettings settings,
++            final OverlayInfo oi) {
++        assertDoesNotContain(settings, oi.packageName, oi.userId);
++    }
++
++    private static void assertDoesNotContain(final OverlayManagerSettings settings,
++            final String packageName, int userId) {
++        try {
++            settings.getOverlayInfo(packageName, userId);
++            fail(String.format("settings contains packageName=%s userId=%d", packageName, userId));
++        } catch (OverlayManagerSettings.BadKeyException e) {
++            // do nothing: we expect to end up here
++        }
++    }
++
++    private static void assertContains(int[] haystack, int needle) {
++        List<Integer> list = IntStream.of(haystack)
++            .boxed()
++            .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
++        if (!list.contains(needle)) {
++            fail(String.format("integer array [%s] does not contain value %s",
++                        TextUtils.join(",", list), needle));
++        }
++    }
++
++    private static void assertDoesNotContain(int[] haystack, int needle) {
++        List<Integer> list = IntStream.of(haystack)
++            .boxed()
++            .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
++        if (list.contains(needle)) {
++            fail(String.format("integer array [%s] contains value %s",
++                        TextUtils.join(",", list), needle));
++        }
++    }
++
++    private static void assertListsAreEqual(List<OverlayInfo> list, OverlayInfo... array) {
++        List<OverlayInfo> other = Stream.of(array)
++            .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
++        assertListsAreEqual(list, other);
++    }
++
++    private static void assertListsAreEqual(List<OverlayInfo> list, List<OverlayInfo> other) {
++        if (!list.equals(other)) {
++            fail(String.format("lists [%s] and [%s] differ",
++                        TextUtils.join(",", list), TextUtils.join(",", other)));
++        }
++    }
++}
+diff --git a/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java b/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+new file mode 100644
+index 00000000000..6f8c3cb9676
+--- /dev/null
++++ b/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+@@ -0,0 +1,427 @@
++package com.android.server.om;
++
++import static android.content.om.OverlayInfo.STATE_DISABLED;
++import static android.content.om.OverlayInfo.STATE_ENABLED;
++import static android.content.om.OverlayInfo.STATE_MISSING_TARGET;
++
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertNotNull;
++import static org.junit.Assert.assertNull;
++import static org.junit.Assert.assertTrue;
++
++import android.annotation.NonNull;
++import android.content.om.OverlayInfo;
++import android.content.pm.ApplicationInfo;
++import android.content.pm.PackageInfo;
++import android.support.test.runner.AndroidJUnit4;
++import android.util.ArraySet;
++
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++import org.junit.Before;
++import org.junit.Test;
++import org.junit.runner.RunWith;
++
++@RunWith(AndroidJUnit4.class)
++public class OverlayManagerTests {
++    private OverlayManagerServiceImpl mImpl;
++    private DummyState mState;
++    private DummyListener mListener;
++
++    private static final String OVERLAY = "com.dummy.overlay";
++    private static final String TARGET = "com.dummy.target";
++    private static final int USER = 0;
++
++    @Before
++    public void setUp() throws Exception {
++        mState = new DummyState();
++        mListener = new DummyListener();
++        mImpl = new OverlayManagerServiceImpl(new DummyPackageManagerHelper(mState),
++                new DummyIdmapManager(mState),
++                new OverlayManagerSettings(),
++                new ArraySet<>(),
++                mListener);
++    }
++
++    // tests: basics
++
++    @Test
++    public void testGetOverlayInfo() throws Exception {
++        installOverlayPackage(OVERLAY, TARGET, USER, false);
++        final OverlayInfo oi = mImpl.getOverlayInfo(OVERLAY, USER);
++        assertNotNull(oi);
++        assertEquals(oi.packageName, OVERLAY);
++        assertEquals(oi.targetPackageName, TARGET);
++        assertEquals(oi.userId, USER);
++    }
++
++    @Test
++    public void testGetOverlayInfosForTarget() throws Exception {
++        final String OVERLAY2 = OVERLAY + "2";
++        final String OVERLAY3 = OVERLAY + "3";
++        final int USER2 = USER + 1;
++        final int USER3 = USER2 + 1;
++
++        installOverlayPackage(OVERLAY, TARGET, USER, false);
++        installOverlayPackage(OVERLAY2, TARGET, USER, false);
++
++        installOverlayPackage(OVERLAY3, TARGET, USER2, false);
++
++        final List<OverlayInfo> ois = mImpl.getOverlayInfosForTarget(TARGET, USER);
++        assertEquals(ois.size(), 2);
++        assertTrue(ois.contains(mImpl.getOverlayInfo(OVERLAY, USER)));
++        assertTrue(ois.contains(mImpl.getOverlayInfo(OVERLAY2, USER)));
++
++        final List<OverlayInfo> ois2 = mImpl.getOverlayInfosForTarget(TARGET, USER2);
++        assertEquals(ois2.size(), 1);
++        assertTrue(ois2.contains(mImpl.getOverlayInfo(OVERLAY3, USER2)));
++
++        final List<OverlayInfo> ois3 = mImpl.getOverlayInfosForTarget(TARGET, USER3);
++        assertNotNull(ois3);
++        assertEquals(ois3.size(), 0);
++
++        final List<OverlayInfo> ois4 = mImpl.getOverlayInfosForTarget("no.such.overlay", USER);
++        assertNotNull(ois4);
++        assertEquals(ois4.size(), 0);
++    }
++
++    @Test
++    public void testGetOverlayInfosForUser() throws Exception {
++        final String OVERLAY2 = OVERLAY + "2";
++        final String OVERLAY3 = OVERLAY + "3";
++        final String TARGET2 = TARGET + "2";
++        final int USER2 = USER + 1;
++
++        installOverlayPackage(OVERLAY, TARGET, USER, false);
++        installOverlayPackage(OVERLAY2, TARGET, USER, false);
++        installOverlayPackage(OVERLAY3, TARGET2, USER, false);
++
++        final Map<String, List<OverlayInfo>> everything = mImpl.getOverlaysForUser(USER);
++        assertEquals(everything.size(), 2);
++
++        final List<OverlayInfo> ois = everything.get(TARGET);
++        assertNotNull(ois);
++        assertEquals(ois.size(), 2);
++        assertTrue(ois.contains(mImpl.getOverlayInfo(OVERLAY, USER)));
++        assertTrue(ois.contains(mImpl.getOverlayInfo(OVERLAY2, USER)));
++
++        final List<OverlayInfo> ois2 = everything.get(TARGET2);
++        assertNotNull(ois2);
++        assertEquals(ois2.size(), 1);
++        assertTrue(ois2.contains(mImpl.getOverlayInfo(OVERLAY3, USER)));
++
++        final Map<String, List<OverlayInfo>> everything2 = mImpl.getOverlaysForUser(USER2);
++        assertNotNull(everything2);
++        assertEquals(everything2.size(), 0);
++    }
++
++    @Test
++    public void testPriority() throws Exception {
++        final String OVERLAY2 = OVERLAY + "2";
++        final String OVERLAY3 = OVERLAY + "3";
++
++        installOverlayPackage(OVERLAY, TARGET, USER, false);
++        installOverlayPackage(OVERLAY2, TARGET, USER, false);
++        installOverlayPackage(OVERLAY3, TARGET, USER, false);
++
++        final OverlayInfo o1 = mImpl.getOverlayInfo(OVERLAY, USER);
++        final OverlayInfo o2 = mImpl.getOverlayInfo(OVERLAY2, USER);
++        final OverlayInfo o3 = mImpl.getOverlayInfo(OVERLAY3, USER);
++
++        assertOverlayInfoList(TARGET, USER, o1, o2, o3);
++
++        assertTrue(mImpl.setLowestPriority(OVERLAY3, USER));
++        assertOverlayInfoList(TARGET, USER, o3, o1, o2);
++
++        assertTrue(mImpl.setHighestPriority(OVERLAY3, USER));
++        assertOverlayInfoList(TARGET, USER, o1, o2, o3);
++
++        assertTrue(mImpl.setPriority(OVERLAY, OVERLAY2, USER));
++        assertOverlayInfoList(TARGET, USER, o2, o1, o3);
++    }
++
++    @Test
++    public void testOverlayInfoStateTransitions() throws Exception {
++        assertNull(mImpl.getOverlayInfo(OVERLAY, USER));
++
++        installOverlayPackage(OVERLAY, TARGET, USER, true);
++        assertState(STATE_MISSING_TARGET, OVERLAY, USER);
++
++        installTargetPackage(TARGET, USER);
++        assertState(STATE_DISABLED, OVERLAY, USER);
++
++        mImpl.setEnabled(OVERLAY, true, USER);
++        assertState(STATE_ENABLED, OVERLAY, USER);
++
++        beginUpgradeTargetPackage(TARGET, USER);
++        assertState(STATE_MISSING_TARGET, OVERLAY, USER);
++
++        endUpgradeTargetPackage(TARGET, USER);
++        assertState(STATE_ENABLED, OVERLAY, USER);
++
++        uninstallTargetPackage(TARGET, USER);
++        assertState(STATE_MISSING_TARGET, OVERLAY, USER);
++
++        installTargetPackage(TARGET, USER);
++        assertState(STATE_ENABLED, OVERLAY, USER);
++    }
++
++    // tests: listener interface
++
++    @Test
++    public void testListener() throws Exception {
++        installOverlayPackage(OVERLAY, TARGET, USER, true);
++        assertEquals(1, mListener.count);
++        mListener.count = 0;
++
++        installTargetPackage(TARGET, USER);
++        assertEquals(1, mListener.count);
++        mListener.count = 0;
++
++        mImpl.setEnabled(OVERLAY, true, USER);
++        assertEquals(1, mListener.count);
++        mListener.count = 0;
++
++        mImpl.setEnabled(OVERLAY, true, USER);
++        assertEquals(0, mListener.count);
++    }
++
++    // helper methods
++
++    private void assertState(int expected, final String overlayPackageName, int userId) {
++        int actual = mImpl.getOverlayInfo(OVERLAY, USER).state;
++        String msg = String.format("expected %s but was %s:",
++                OverlayInfo.stateToString(expected), OverlayInfo.stateToString(actual));
++        assertEquals(msg, expected, actual);
++    }
++
++    private void assertOverlayInfoList(final String targetPackageName, int userId,
++            OverlayInfo... overlayInfos) {
++        final List<OverlayInfo> expected =
++                mImpl.getOverlayInfosForTarget(targetPackageName, userId);
++        final List<OverlayInfo> actual = Arrays.asList(overlayInfos);
++        assertEquals(expected, actual);
++    }
++
++    private void installTargetPackage(String packageName, int userId) {
++        if (mState.select(packageName, userId) != null) {
++            throw new IllegalStateException("package already installed");
++        }
++        mState.add(packageName, null, userId, false);
++        mImpl.onTargetPackageAdded(packageName, userId);
++    }
++
++    private void beginUpgradeTargetPackage(String packageName, int userId) {
++        if (mState.select(packageName, userId) == null) {
++            throw new IllegalStateException("package not installed");
++        }
++        mState.add(packageName, null, userId, false);
++        mImpl.onTargetPackageUpgrading(packageName, userId);
++    }
++
++    private void endUpgradeTargetPackage(String packageName, int userId) {
++        if (mState.select(packageName, userId) == null) {
++            throw new IllegalStateException("package not installed");
++        }
++        mState.add(packageName, null, userId, false);
++        mImpl.onTargetPackageUpgraded(packageName, userId);
++    }
++
++    private void uninstallTargetPackage(String packageName, int userId) {
++        if (mState.select(packageName, userId) == null) {
++            throw new IllegalStateException("package not installed");
++        }
++        mState.remove(packageName, userId);
++        mImpl.onTargetPackageRemoved(packageName, userId);
++    }
++
++    private void installOverlayPackage(String packageName, String targetPackageName, int userId,
++            boolean canCreateIdmap) {
++        if (mState.select(packageName, userId) != null) {
++            throw new IllegalStateException("package already installed");
++        }
++        mState.add(packageName, targetPackageName, userId, canCreateIdmap);
++        mImpl.onOverlayPackageAdded(packageName, userId);
++    }
++
++    private void upgradeOverlayPackage(String packageName, String targetPackageName, int userId,
++            boolean canCreateIdmap) {
++        // implement this when adding support for downloadable overlays
++        throw new IllegalArgumentException("not implemented");
++    }
++
++    private void uninstallOverlayPackage(String packageName, int userId) {
++        // implement this when adding support for downloadable overlays
++        throw new IllegalArgumentException("not implemented");
++    }
++
++    private static final class DummyState {
++        private List<Package> mPackages = new ArrayList<>();
++
++        public void add(String packageName, String targetPackageName, int userId,
++                boolean canCreateIdmap) {
++            remove(packageName, userId);
++            Package pkg = new Package();
++            pkg.packageName = packageName;
++            pkg.targetPackageName = targetPackageName;
++            pkg.userId = userId;
++            pkg.canCreateIdmap = canCreateIdmap;
++            mPackages.add(pkg);
++        }
++
++        public void remove(String packageName, int userId) {
++            final Iterator<Package> iter = mPackages.iterator();
++            while (iter.hasNext()) {
++                final Package pkg = iter.next();
++                if (pkg.packageName.equals(packageName) && pkg.userId == userId) {
++                    iter.remove();
++                    return;
++                }
++            }
++        }
++
++        public List<Package> select(int userId) {
++            List<Package> out = new ArrayList<>();
++            final int N = mPackages.size();
++            for (int i = 0; i < N; i++) {
++                final Package pkg = mPackages.get(i);
++                if (pkg.userId == userId) {
++                    out.add(pkg);
++                }
++            }
++            return out;
++        }
++
++        public Package select(String packageName, int userId) {
++            final int N = mPackages.size();
++            for (int i = 0; i < N; i++) {
++                final Package pkg = mPackages.get(i);
++                if (pkg.packageName.equals(packageName) && pkg.userId == userId) {
++                    return pkg;
++                }
++            }
++            return null;
++        }
++
++        private static final class Package {
++            String packageName;
++            int userId;
++            String targetPackageName;
++            boolean canCreateIdmap;
++        }
++    }
++
++    private static final class DummyPackageManagerHelper implements
++            OverlayManagerServiceImpl.PackageManagerHelper {
++        private final DummyState mState;
++
++        public DummyPackageManagerHelper(DummyState state) {
++            mState = state;
++        }
++
++        @Override
++        public PackageInfo getPackageInfo(@NonNull String packageName, int userId) {
++            final DummyState.Package pkg = mState.select(packageName, userId);
++            if (pkg == null) {
++                return null;
++            }
++            ApplicationInfo ai = new ApplicationInfo();
++            ai.sourceDir = String.format("%s/%s/base.apk",
++                    pkg.targetPackageName == null ? "/system/app/" : "/vendor/overlay/",
++                    pkg.packageName);
++            PackageInfo pi = new PackageInfo();
++            pi.applicationInfo = ai;
++            pi.packageName = pkg.packageName;
++            pi.overlayTarget = pkg.targetPackageName;
++            return pi;
++        }
++
++        @Override
++        public boolean signaturesMatching(@NonNull String packageName1,
++                @NonNull String packageName2, int userId) {
++            return false;
++        }
++
++        @Override
++        public List<PackageInfo> getOverlayPackages(int userId) {
++            List<PackageInfo> out = new ArrayList<>();
++            final List<DummyState.Package> pkgs = mState.select(userId);
++            final int N = pkgs.size();
++            for (int i = 0; i < N; i++) {
++                final DummyState.Package pkg = pkgs.get(i);
++                if (pkg.targetPackageName != null) {
++                    out.add(getPackageInfo(pkg.packageName, pkg.userId));
++                }
++            }
++            return out;
++        }
++    }
++
++    private static class DummyIdmapManager extends IdmapManager {
++        private final DummyState mState;
++        private Set<String> mIdmapFiles = new ArraySet<>();
++
++        DummyIdmapManager(DummyState state) {
++            super(null);
++            mState = state;
++        }
++
++        @Override
++        boolean createIdmap(@NonNull final PackageInfo targetPackage,
++                @NonNull final PackageInfo overlayPackage, int userId) {
++            final DummyState.Package t = mState.select(targetPackage.packageName, userId);
++            if (t == null) {
++                return false;
++            }
++            final DummyState.Package o = mState.select(overlayPackage.packageName, userId);
++            if (o == null) {
++                return false;
++            }
++            if (!o.canCreateIdmap) {
++                return false;
++            }
++            final String key = createKey(overlayPackage.packageName, userId);
++            mIdmapFiles.add(key);
++            return true;
++        }
++
++        @Override
++        boolean removeIdmap(@NonNull final OverlayInfo oi, final int userId) {
++            final String key = createKey(oi.packageName, oi.userId);
++            if (!mIdmapFiles.contains(key)) {
++                return false;
++            }
++            mIdmapFiles.remove(key);
++            return true;
++        }
++
++        @Override
++        boolean idmapExists(@NonNull final OverlayInfo oi) {
++            final String key = createKey(oi.packageName, oi.userId);
++            return mIdmapFiles.contains(key);
++        }
++
++        @Override
++        boolean idmapExists(@NonNull final PackageInfo overlayPackage, final int userId) {
++            final String key = createKey(overlayPackage.packageName, userId);
++            return mIdmapFiles.contains(key);
++        }
++
++        private String createKey(@NonNull final String packageName, final int userId) {
++            return String.format("%s:%d", packageName, userId);
++        }
++    }
++
++    private static class DummyListener implements OverlayManagerServiceImpl.OverlayChangeListener {
++        public int count;
++
++        public void onOverlaysChanged(@NonNull String targetPackage, int userId) {
++            count++;
++        }
++    }
++}
+diff --git a/services/tests/servicestests/src/com/android/server/om/OverlayUtils.java b/services/tests/servicestests/src/com/android/server/om/OverlayUtils.java
+new file mode 100644
+index 00000000000..9e713c6dc77
+--- /dev/null
++++ b/services/tests/servicestests/src/com/android/server/om/OverlayUtils.java
+@@ -0,0 +1,123 @@
++package com.android.server.om;
++
++import static java.util.concurrent.TimeUnit.MILLISECONDS;
++
++import android.annotation.NonNull;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
++import android.content.om.IOverlayManager;
++import android.content.om.OverlayInfo;
++import android.os.IBinder;
++import android.os.PatternMatcher;
++import android.os.ServiceManager;
++import android.os.SystemClock;
++
++import java.util.concurrent.BlockingQueue;
++import java.util.concurrent.LinkedBlockingQueue;
++
++class OverlayUtils {
++    private static final int DELAY_MS = 100;
++
++    public static void enable(@NonNull final Context ctx, @NonNull final String packageName,
++            final int userId) throws Exception {
++        if (isEnabled(ctx, packageName, userId)) {
++            return;
++        }
++
++        final IOverlayManager om = getOverlayManager(ctx);
++        if (!om.setEnabled(packageName, true, userId)) {
++            throw new Exception("failed to enable overlay " + packageName);
++        }
++        SystemClock.sleep(DELAY_MS);
++    }
++
++    public static void disable(@NonNull final Context ctx, @NonNull final String packageName,
++            final int userId) throws Exception {
++        if (!isEnabled(ctx, packageName, userId)) {
++            return;
++        }
++
++        final IOverlayManager om = getOverlayManager(ctx);
++        if (!om.setEnabled(packageName, false, userId)) {
++            throw new Exception("failed to disable overlay " + packageName);
++        }
++        SystemClock.sleep(DELAY_MS);
++    }
++
++    public static void reorder(@NonNull final Context ctx,
++            @NonNull final String lessImportantPackageName,
++            @NonNull final String moreImportantPackageName,
++            final int userId) throws Exception {
++        final IOverlayManager om = getOverlayManager(ctx);
++        if (!om.setPriority(moreImportantPackageName, lessImportantPackageName, userId)) {
++            throw new Exception("failed to reorder overlays " + moreImportantPackageName
++                    + " and " + lessImportantPackageName);
++        }
++        SystemClock.sleep(DELAY_MS);
++    }
++
++    public static boolean isEnabled(@NonNull final Context ctx, @NonNull final String packageName,
++            final int userId) throws Exception {
++        final IOverlayManager om = getOverlayManager(ctx);
++        final OverlayInfo info = om.getOverlayInfo(packageName, userId);
++        return info.isEnabled();
++    }
++
++    private static IOverlayManager getOverlayManager(@NonNull final Context ctx) {
++        final IBinder b = ServiceManager.getService(Context.OVERLAY_SERVICE);
++        return IOverlayManager.Stub.asInterface(b);
++    }
++
++    private static IntentFilter createIntentFilter(@NonNull final String action,
++            @NonNull final String packageName) {
++        IntentFilter filter = new IntentFilter();
++        filter.addAction(action);
++        filter.addDataScheme("package");
++        filter.addDataSchemeSpecificPart(".*/" + packageName, PatternMatcher.PATTERN_SIMPLE_GLOB);
++        return filter;
++    }
++
++    private OverlayUtils() {}
++
++    private static class IntentListener extends BroadcastReceiver implements AutoCloseable {
++        private static final int MAX_WAIT_TIME = 30 * 1000;
++
++        private final BlockingQueue<Integer> mResults = new LinkedBlockingQueue<Integer>(1);
++        private final Context mContext;
++
++        IntentListener(@NonNull final Context ctx, @NonNull final IntentFilter filter) {
++            mContext = ctx;
++            registerReceiver(filter);
++        }
++
++        @Override
++        public void close() throws Exception {
++            waitForIntent();
++            unregisterReceiver();
++        }
++
++        @Override
++        public void onReceive(@NonNull final Context ctx, @NonNull final Intent intent) {
++            try {
++                mResults.put(1);
++            } catch (Exception e) { }
++        }
++
++        private void waitForIntent() throws Exception {
++            final Integer result = mResults.poll(MAX_WAIT_TIME, MILLISECONDS);
++            if (result == null) {
++                throw new Exception("operation timed out");
++            }
++        }
++
++        private void registerReceiver(@NonNull final IntentFilter filter) {
++            mContext.registerReceiver(this, filter);
++        }
++
++        private void unregisterReceiver() {
++            mContext.unregisterReceiver(this);
++        }
++    }
++}
+diff --git a/services/tests/servicestests/src/com/android/server/om/PackageUtils.java b/services/tests/servicestests/src/com/android/server/om/PackageUtils.java
+new file mode 100644
+index 00000000000..a06822a52fa
+--- /dev/null
++++ b/services/tests/servicestests/src/com/android/server/om/PackageUtils.java
+@@ -0,0 +1,140 @@
++package com.android.server.om;
++
++import static android.app.PendingIntent.FLAG_ONE_SHOT;
++import static android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL;
++
++import static java.util.concurrent.TimeUnit.MILLISECONDS;
++
++import android.annotation.NonNull;
++import android.app.PendingIntent;
++import android.content.BroadcastReceiver;
++import android.content.Context;
++import android.content.Intent;
++import android.content.IntentFilter;
++import android.content.IntentSender;
++import android.content.pm.PackageInfo;
++import android.content.pm.PackageInstaller;
++import android.content.pm.PackageManager;
++import android.net.Uri;
++import android.os.Environment;
++import android.os.FileUtils;
++
++import java.io.File;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.util.concurrent.BlockingQueue;
++import java.util.concurrent.LinkedBlockingQueue;
++
++class PackageUtils {
++    public static void install(@NonNull final Context ctx, @NonNull final Uri uri)
++            throws Exception {
++        final PackageInstaller installer = ctx.getPackageManager().getPackageInstaller();
++        final int sessionId =
++                installer.createSession(new PackageInstaller.SessionParams(MODE_FULL_INSTALL));
++        final PackageInstaller.Session session = installer.openSession(sessionId);
++
++        try (
++            final InputStream is = ctx.getContentResolver().openInputStream(uri);
++            final OutputStream os = session.openWrite(PackageUtils.class.getSimpleName(), 0, -1);
++        ) {
++            int c;
++            byte[] buffer = new byte[1024];
++            while ((c = is.read(buffer)) != -1) {
++                os.write(buffer, 0, c);
++            }
++        }
++
++        try (final PackageInstallerCallback cb = new PackageInstallerCallback(ctx)) {
++            session.commit(cb.getIntentSender());
++        }
++    }
++
++    public static void uninstall(@NonNull final Context ctx, @NonNull String packageName)
++            throws Exception {
++        if (!isInstalled(ctx, packageName)) {
++            return;
++        }
++
++        try (final PackageInstallerCallback cb = new PackageInstallerCallback(ctx)) {
++            final PackageInstaller installer = ctx.getPackageManager().getPackageInstaller();
++            installer.uninstall(packageName, cb.getIntentSender());
++        }
++    }
++
++    public static boolean isInstalled(@NonNull final Context ctx,
++            @NonNull final String packageName) throws Exception {
++        final PackageManager pm = ctx.getPackageManager();
++        try {
++            final PackageInfo info = pm.getPackageInfo(packageName, 0);
++        } catch (PackageManager.NameNotFoundException e) {
++            return false;
++        }
++        return true;
++    }
++
++    private PackageUtils() {}
++
++    private static class PackageInstallerCallback extends BroadcastReceiver
++            implements AutoCloseable {
++
++        private static final String ACTION_PACKAGE_INSTALLER_CALLBACK = "com.android.server.om."
++                + "PackageUtils.PackageInstallerCallback.ACTION_PACKAGE_INSTALLER_CALLBACK";
++        private static final int REQUEST_CODE_PACKAGE_INSTALLER_CALLBACK = 1;
++        private static final int MAX_WAIT_TIME = 30 * 1000;
++
++        private final Context mContext;
++        private final PendingIntent mPendingIntent;
++        private final BlockingQueue<Integer> mResults = new LinkedBlockingQueue<Integer>(1);
++
++        PackageInstallerCallback(@NonNull final Context ctx) {
++            mContext = ctx;
++            mPendingIntent = PendingIntent.getBroadcast(mContext,
++                    REQUEST_CODE_PACKAGE_INSTALLER_CALLBACK,
++                    new Intent(ACTION_PACKAGE_INSTALLER_CALLBACK), FLAG_ONE_SHOT);
++            registerCallback();
++        }
++
++        @Override
++        public void onReceive(@NonNull final Context ctx, @NonNull final Intent intent) {
++            if (!ACTION_PACKAGE_INSTALLER_CALLBACK.equals(intent.getAction())) {
++                return;
++            }
++            final int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS,
++                    PackageInstaller.STATUS_FAILURE);
++            try {
++                mResults.put(status);
++            } catch (Exception e) { }
++        }
++
++        @Override
++        public void close() throws Exception {
++            waitForCallback();
++            unregisterCallback();
++        }
++
++        public IntentSender getIntentSender() {
++            return mPendingIntent.getIntentSender();
++        }
++
++        private void registerCallback() {
++            IntentFilter filter = new IntentFilter();
++            filter.addAction(ACTION_PACKAGE_INSTALLER_CALLBACK);
++            mContext.registerReceiver(this, filter);
++        }
++
++        private void waitForCallback() throws Exception {
++            final Integer result = mResults.poll(MAX_WAIT_TIME, MILLISECONDS);
++            if (result == null) {
++                throw new Exception("operation timed out");
++            }
++            if (result.intValue() != PackageInstaller.STATUS_SUCCESS) {
++                throw new Exception("operation failed (" + result.intValue() + ")");
++            }
++        }
++
++        private void unregisterCallback() {
++            mContext.unregisterReceiver(this);
++        }
++    }
++}
+diff --git a/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java b/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java
+new file mode 100644
+index 00000000000..68cc19835df
+--- /dev/null
++++ b/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java
+@@ -0,0 +1,603 @@
++package com.android.server.om;
++
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertFalse;
++import static org.junit.Assert.assertTrue;
++import static org.junit.Assume.assumeTrue;
++
++import android.content.Context;
++import android.content.res.AssetManager;
++import android.content.res.Configuration;
++import android.content.res.ResourceId;
++import android.content.res.Resources;
++import android.graphics.Bitmap;
++import android.graphics.BitmapFactory;
++import android.graphics.Color;
++import android.net.Uri;
++import android.os.SystemClock;
++import android.os.UserHandle;
++import android.support.test.InstrumentationRegistry;
++import android.support.test.filters.Suppress;
++import android.support.test.runner.AndroidJUnit4;
++
++import com.android.frameworks.servicestests.R;
++
++import java.io.BufferedReader;
++import java.io.InputStream;
++import java.io.InputStreamReader;
++import java.util.Locale;
++
++import org.junit.AfterClass;
++import org.junit.AssumptionViolatedException;
++import org.junit.Ignore;
++import org.junit.Before;
++import org.junit.BeforeClass;
++import org.junit.Test;
++import org.junit.runner.RunWith;
++
++import org.xmlpull.v1.XmlPullParser;
++
++@RunWith(AndroidJUnit4.class)
++public class RuntimeResourceOverlayTests {
++    private static final String APP_OVERLAY_1 = "com.android.rrotests.app_overlay_1";
++    private static final String APP_OVERLAY_2 = "com.android.rrotests.app_overlay_2";
++    private static final String SYSTEM_OVERLAY_1 = "com.android.rrotests.system_overlay_1";
++    private static final String SYSTEM_OVERLAY_2 = "com.android.rrotests.system_overlay_2";
++    private static final String SOME_OTHER_APP = "com.android.rrotests.some_other_app";
++    private static final String SOME_OTHER_APP_OVERLAY = "com.android.rrotests.some_other_app_overlay";
++
++    private static final String SOME_OTHER_APP_URI =
++        "android.resource://com.android.frameworks.servicestests/raw/some_other_app";
++
++    private static boolean mInitOK = false;
++
++    private Context mContext;
++    private int mUserId;
++    private Resources mResources;
++
++    @BeforeClass
++    public static void beforeClass() throws Exception {
++        Context ctx = InstrumentationRegistry.getContext();
++        int userId = UserHandle.myUserId();
++
++        // When support for overlays in /data is added, the checks below should
++        // be replaced with calls to PackageUtils.install.
++        try {
++            assumeTrue(PackageUtils.isInstalled(ctx, APP_OVERLAY_1));
++            assumeTrue(PackageUtils.isInstalled(ctx, APP_OVERLAY_2));
++            assumeTrue(PackageUtils.isInstalled(ctx, SYSTEM_OVERLAY_1));
++            assumeTrue(PackageUtils.isInstalled(ctx, SYSTEM_OVERLAY_2));
++            assumeTrue(PackageUtils.isInstalled(ctx, SOME_OTHER_APP_OVERLAY));
++            mInitOK = true;
++        } catch (AssumptionViolatedException e) {
++            throw new AssumptionViolatedException("Missing overlay packages: run " +
++                    "prepare-overlay-tests.sh, reboot the device and try again");
++        }
++    }
++
++    @AfterClass
++    public static void afterClass() throws Exception {
++        if (!mInitOK) {
++            return;
++        }
++
++        Context ctx = InstrumentationRegistry.getContext();
++        int userId = UserHandle.myUserId();
++
++        OverlayUtils.disable(ctx, SOME_OTHER_APP_OVERLAY, userId);
++
++        OverlayUtils.disable(ctx, SYSTEM_OVERLAY_2, userId);
++        OverlayUtils.disable(ctx, SYSTEM_OVERLAY_1, userId);
++        OverlayUtils.disable(ctx, APP_OVERLAY_2, userId);
++        OverlayUtils.disable(ctx, APP_OVERLAY_1, userId);
++    }
++
++    @Before
++    public void setUp() throws Exception {
++        mContext = InstrumentationRegistry.getTargetContext();
++        mUserId = UserHandle.myUserId();
++        mResources = mContext.getResources();
++
++        OverlayUtils.disable(mContext, SOME_OTHER_APP_OVERLAY, mUserId);
++
++        OverlayUtils.disable(mContext, SYSTEM_OVERLAY_2, mUserId);
++        OverlayUtils.disable(mContext, SYSTEM_OVERLAY_1, mUserId);
++        OverlayUtils.disable(mContext, APP_OVERLAY_2, mUserId);
++        OverlayUtils.disable(mContext, APP_OVERLAY_1, mUserId);
++
++        OverlayUtils.reorder(mContext, APP_OVERLAY_1, APP_OVERLAY_2, mUserId);
++        OverlayUtils.reorder(mContext, SYSTEM_OVERLAY_1, SYSTEM_OVERLAY_2, mUserId);
++    }
++
++    @Test
++    public void testNoOverlaysEnabled() throws Exception {
++        setEnglishLocale();
++        assertResource(true, R.bool.b);
++        assertResource(0, R.integer.i);
++        assertResource("a", R.string.s);
++        assertResource(new int[]{1, 2, 3}, R.array.i);
++        assertDrawableResource(0xffff9700, 0, 0, R.drawable.d);
++        assertRawResource(0x00005665, R.drawable.d);
++        assertXmlResource("KitKat", R.xml.cookie, "cookie", "value");
++        assertAssetResource("KitKat", "cookie.txt");
++
++        assertResource(true, com.android.internal.R.bool.config_annoy_dianne);
++
++        setSwedishLocale();
++        assertResource("A", R.string.s);
++
++        setEnglishLocale();
++        assertResource(100, R.integer.matrix_100000);
++        assertResource(100, R.integer.matrix_100001);
++        assertResource(100, R.integer.matrix_100010);
++        assertResource(100, R.integer.matrix_100011);
++        assertResource(100, R.integer.matrix_100100);
++        assertResource(100, R.integer.matrix_100101);
++        assertResource(100, R.integer.matrix_100110);
++        assertResource(100, R.integer.matrix_100111);
++        assertResource(100, R.integer.matrix_101000);
++        assertResource(100, R.integer.matrix_101001);
++        assertResource(100, R.integer.matrix_101010);
++        assertResource(100, R.integer.matrix_101011);
++        assertResource(100, R.integer.matrix_101100);
++        assertResource(100, R.integer.matrix_101101);
++        assertResource(100, R.integer.matrix_101110);
++        assertResource(100, R.integer.matrix_101111);
++        assertResource(100, R.integer.matrix_110000);
++        assertResource(100, R.integer.matrix_110001);
++        assertResource(100, R.integer.matrix_110010);
++        assertResource(100, R.integer.matrix_110011);
++        assertResource(100, R.integer.matrix_110100);
++        assertResource(100, R.integer.matrix_110101);
++        assertResource(100, R.integer.matrix_110110);
++        assertResource(100, R.integer.matrix_110111);
++        assertResource(100, R.integer.matrix_111000);
++        assertResource(100, R.integer.matrix_111001);
++        assertResource(100, R.integer.matrix_111010);
++        assertResource(100, R.integer.matrix_111011);
++        assertResource(100, R.integer.matrix_111100);
++        assertResource(100, R.integer.matrix_111101);
++        assertResource(100, R.integer.matrix_111110);
++        assertResource(100, R.integer.matrix_111111);
++
++        setSwedishLocale();
++        assertResource(100, R.integer.matrix_100000);
++        assertResource(100, R.integer.matrix_100001);
++        assertResource(100, R.integer.matrix_100010);
++        assertResource(100, R.integer.matrix_100011);
++        assertResource(100, R.integer.matrix_100100);
++        assertResource(100, R.integer.matrix_100101);
++        assertResource(100, R.integer.matrix_100110);
++        assertResource(100, R.integer.matrix_100111);
++        assertResource(100, R.integer.matrix_101000);
++        assertResource(100, R.integer.matrix_101001);
++        assertResource(100, R.integer.matrix_101010);
++        assertResource(100, R.integer.matrix_101011);
++        assertResource(100, R.integer.matrix_101100);
++        assertResource(100, R.integer.matrix_101101);
++        assertResource(100, R.integer.matrix_101110);
++        assertResource(100, R.integer.matrix_101111);
++        assertResource(200, R.integer.matrix_110000);
++        assertResource(200, R.integer.matrix_110001);
++        assertResource(200, R.integer.matrix_110010);
++        assertResource(200, R.integer.matrix_110011);
++        assertResource(200, R.integer.matrix_110100);
++        assertResource(200, R.integer.matrix_110101);
++        assertResource(200, R.integer.matrix_110110);
++        assertResource(200, R.integer.matrix_110111);
++        assertResource(200, R.integer.matrix_111000);
++        assertResource(200, R.integer.matrix_111001);
++        assertResource(200, R.integer.matrix_111010);
++        assertResource(200, R.integer.matrix_111011);
++        assertResource(200, R.integer.matrix_111100);
++        assertResource(200, R.integer.matrix_111101);
++        assertResource(200, R.integer.matrix_111110);
++        assertResource(200, R.integer.matrix_111111);
++    }
++
++    @Test
++    public void testSingleOverlayEnabled() throws Exception {
++        OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++
++        setEnglishLocale();
++        assertResource(false, R.bool.b);
++        assertResource(1, R.integer.i);
++        assertResource("b", R.string.s);
++        assertResource(new int[]{4, 5}, R.array.i);
++        assertDrawableResource(0xff58ff00, 0, 0, R.drawable.d);
++        assertRawResource(0x000051da, R.drawable.d);
++        assertXmlResource("Lollipop", R.xml.cookie, "cookie", "value");
++        assertAssetResource("Lollipop", "cookie.txt");
++
++        assertResource(false, com.android.internal.R.bool.config_annoy_dianne);
++
++        setSwedishLocale();
++        assertResource("B", R.string.s);
++
++        setEnglishLocale();
++        assertResource(100, R.integer.matrix_100000);
++        assertResource(100, R.integer.matrix_100001);
++        assertResource(100, R.integer.matrix_100010);
++        assertResource(100, R.integer.matrix_100011);
++        assertResource(100, R.integer.matrix_100100);
++        assertResource(100, R.integer.matrix_100101);
++        assertResource(100, R.integer.matrix_100110);
++        assertResource(100, R.integer.matrix_100111);
++        assertResource(300, R.integer.matrix_101000);
++        assertResource(300, R.integer.matrix_101001);
++        assertResource(300, R.integer.matrix_101010);
++        assertResource(300, R.integer.matrix_101011);
++        assertResource(300, R.integer.matrix_101100);
++        assertResource(300, R.integer.matrix_101101);
++        assertResource(300, R.integer.matrix_101110);
++        assertResource(300, R.integer.matrix_101111);
++        assertResource(100, R.integer.matrix_110000);
++        assertResource(100, R.integer.matrix_110001);
++        assertResource(100, R.integer.matrix_110010);
++        assertResource(100, R.integer.matrix_110011);
++        assertResource(100, R.integer.matrix_110100);
++        assertResource(100, R.integer.matrix_110101);
++        assertResource(100, R.integer.matrix_110110);
++        assertResource(100, R.integer.matrix_110111);
++        assertResource(300, R.integer.matrix_111000);
++        assertResource(300, R.integer.matrix_111001);
++        assertResource(300, R.integer.matrix_111010);
++        assertResource(300, R.integer.matrix_111011);
++        assertResource(300, R.integer.matrix_111100);
++        assertResource(300, R.integer.matrix_111101);
++        assertResource(300, R.integer.matrix_111110);
++        assertResource(300, R.integer.matrix_111111);
++
++        setSwedishLocale();
++        assertResource(100, R.integer.matrix_100000);
++        assertResource(100, R.integer.matrix_100001);
++        assertResource(100, R.integer.matrix_100010);
++        assertResource(100, R.integer.matrix_100011);
++        assertResource(400, R.integer.matrix_100100);
++        assertResource(400, R.integer.matrix_100101);
++        assertResource(400, R.integer.matrix_100110);
++        assertResource(400, R.integer.matrix_100111);
++        assertResource(300, R.integer.matrix_101000);
++        assertResource(300, R.integer.matrix_101001);
++        assertResource(300, R.integer.matrix_101010);
++        assertResource(300, R.integer.matrix_101011);
++        assertResource(400, R.integer.matrix_101100);
++        assertResource(400, R.integer.matrix_101101);
++        assertResource(400, R.integer.matrix_101110);
++        assertResource(400, R.integer.matrix_101111);
++        assertResource(200, R.integer.matrix_110000);
++        assertResource(200, R.integer.matrix_110001);
++        assertResource(200, R.integer.matrix_110010);
++        assertResource(200, R.integer.matrix_110011);
++        assertResource(400, R.integer.matrix_110100);
++        assertResource(400, R.integer.matrix_110101);
++        assertResource(400, R.integer.matrix_110110);
++        assertResource(400, R.integer.matrix_110111);
++        assertResource(200, R.integer.matrix_111000);
++        assertResource(200, R.integer.matrix_111001);
++        assertResource(200, R.integer.matrix_111010);
++        assertResource(200, R.integer.matrix_111011);
++        assertResource(400, R.integer.matrix_111100);
++        assertResource(400, R.integer.matrix_111101);
++        assertResource(400, R.integer.matrix_111110);
++        assertResource(400, R.integer.matrix_111111);
++    }
++
++    @Test
++    public void testBothOverlaysEnabled() throws Exception {
++        OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, APP_OVERLAY_2, mUserId);
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_2, mUserId);
++
++        setEnglishLocale();
++        assertResource(true, R.bool.b);
++        assertResource(2, R.integer.i);
++        assertResource("c", R.string.s);
++        assertResource(new int[]{6, 7, 8, 9}, R.array.i);
++        assertDrawableResource(0xff00d5fe, 0, 0, R.drawable.d);
++        assertRawResource(0x0000527d, R.drawable.d);
++        assertXmlResource("Marshmallow", R.xml.cookie, "cookie", "value");
++        assertAssetResource("Marshmallow", "cookie.txt");
++
++        assertResource(true, com.android.internal.R.bool.config_annoy_dianne);
++
++        setSwedishLocale();
++        assertResource("C", R.string.s);
++
++        setEnglishLocale();
++        assertResource(100, R.integer.matrix_100000);
++        assertResource(100, R.integer.matrix_100001);
++        assertResource(500, R.integer.matrix_100010);
++        assertResource(500, R.integer.matrix_100011);
++        assertResource(100, R.integer.matrix_100100);
++        assertResource(100, R.integer.matrix_100101);
++        assertResource(500, R.integer.matrix_100110);
++        assertResource(500, R.integer.matrix_100111);
++        assertResource(300, R.integer.matrix_101000);
++        assertResource(300, R.integer.matrix_101001);
++        assertResource(500, R.integer.matrix_101010);
++        assertResource(500, R.integer.matrix_101011);
++        assertResource(300, R.integer.matrix_101100);
++        assertResource(300, R.integer.matrix_101101);
++        assertResource(500, R.integer.matrix_101110);
++        assertResource(500, R.integer.matrix_101111);
++        assertResource(100, R.integer.matrix_110000);
++        assertResource(100, R.integer.matrix_110001);
++        assertResource(500, R.integer.matrix_110010);
++        assertResource(500, R.integer.matrix_110011);
++        assertResource(100, R.integer.matrix_110100);
++        assertResource(100, R.integer.matrix_110101);
++        assertResource(500, R.integer.matrix_110110);
++        assertResource(500, R.integer.matrix_110111);
++        assertResource(300, R.integer.matrix_111000);
++        assertResource(300, R.integer.matrix_111001);
++        assertResource(500, R.integer.matrix_111010);
++        assertResource(500, R.integer.matrix_111011);
++        assertResource(300, R.integer.matrix_111100);
++        assertResource(300, R.integer.matrix_111101);
++        assertResource(500, R.integer.matrix_111110);
++        assertResource(500, R.integer.matrix_111111);
++
++        setSwedishLocale();
++        assertResource(100, R.integer.matrix_100000);
++        assertResource(600, R.integer.matrix_100001);
++        assertResource(500, R.integer.matrix_100010);
++        assertResource(600, R.integer.matrix_100011);
++        assertResource(400, R.integer.matrix_100100);
++        assertResource(600, R.integer.matrix_100101);
++        assertResource(400, R.integer.matrix_100110);
++        assertResource(600, R.integer.matrix_100111);
++        assertResource(300, R.integer.matrix_101000);
++        assertResource(600, R.integer.matrix_101001);
++        assertResource(500, R.integer.matrix_101010);
++        assertResource(600, R.integer.matrix_101011);
++        assertResource(400, R.integer.matrix_101100);
++        assertResource(600, R.integer.matrix_101101);
++        assertResource(400, R.integer.matrix_101110);
++        assertResource(600, R.integer.matrix_101111);
++        assertResource(200, R.integer.matrix_110000);
++        assertResource(600, R.integer.matrix_110001);
++        assertResource(200, R.integer.matrix_110010);
++        assertResource(600, R.integer.matrix_110011);
++        assertResource(400, R.integer.matrix_110100);
++        assertResource(600, R.integer.matrix_110101);
++        assertResource(400, R.integer.matrix_110110);
++        assertResource(600, R.integer.matrix_110111);
++        assertResource(200, R.integer.matrix_111000);
++        assertResource(600, R.integer.matrix_111001);
++        assertResource(200, R.integer.matrix_111010);
++        assertResource(600, R.integer.matrix_111011);
++        assertResource(400, R.integer.matrix_111100);
++        assertResource(600, R.integer.matrix_111101);
++        assertResource(400, R.integer.matrix_111110);
++        assertResource(600, R.integer.matrix_111111);
++    }
++
++    @Ignore("required bookkeeping to expensive to implement")
++    @Test
++    public void testResourcesFromOtherPackage() throws Exception {
++        try {
++            PackageUtils.install(mContext, Uri.parse(SOME_OTHER_APP_URI));
++
++            Resources otherResources =
++                mContext.getPackageManager().getResourcesForApplication(SOME_OTHER_APP);
++            int resid = otherResources.getIdentifier("i", "integer", SOME_OTHER_APP);
++            assertTrue(ResourceId.isValid(resid));
++            int value = otherResources.getInteger(resid);
++            assertEquals(100, value);
++
++            OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++            OverlayUtils.enable(mContext, APP_OVERLAY_2, mUserId);
++            OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++            OverlayUtils.enable(mContext, SYSTEM_OVERLAY_2, mUserId);
++
++            value = otherResources.getInteger(resid);
++            assertEquals(100, value);
++
++            OverlayUtils.enable(mContext, SOME_OTHER_APP_OVERLAY, mUserId);
++
++            value = otherResources.getInteger(resid);
++            assertEquals(1234, value);
++        } finally {
++            PackageUtils.uninstall(mContext, SOME_OTHER_APP);
++        }
++    }
++
++    @Test
++    public void testSystemOverlaysShouldApplyAfterInstallation() throws Exception {
++        try {
++            OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++            PackageUtils.install(mContext, Uri.parse(SOME_OTHER_APP_URI));
++
++            // give the overlay manager time to detect the new package and
++            // inform the package manager about which overlays to use
++            SystemClock.sleep(1000);
++
++            Resources otherResources =
++                mContext.getPackageManager().getResourcesForApplication(SOME_OTHER_APP);
++            int resid = otherResources.getIdentifier("config_annoy_dianne", "bool", "android");
++            assertTrue(ResourceId.isValid(resid));
++            boolean value  = otherResources.getBoolean(resid);
++            assertEquals(false, value);
++        } finally {
++            PackageUtils.uninstall(mContext, SOME_OTHER_APP);
++        }
++    }
++
++    @Test
++    public void testResourcesFromAndroidPackage() throws Exception {
++        Resources otherResources =
++                mContext.getPackageManager().getResourcesForApplication("android");
++        int resid = otherResources.getIdentifier("config_annoy_dianne", "bool", "android");
++        assertTrue(ResourceId.isValid(resid));
++        boolean value = otherResources.getBoolean(resid);
++        assertTrue(value);
++
++        OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, APP_OVERLAY_2, mUserId);
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_2, mUserId);
++
++        value = otherResources.getBoolean(resid);
++        assertTrue(value);
++    }
++
++    @Test
++    public void testTheOrderInWhichOverlaysAreEnabledDoesNotMatterPart1() throws Exception {
++        OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++
++        setEnglishLocale();
++        assertResource(false, R.bool.b);
++        assertResource(false, com.android.internal.R.bool.config_annoy_dianne);
++    }
++
++    @Test
++    public void testTheOrderInWhichOverlaysAreEnabledDoesNotMatterPart2() throws Exception {
++        OverlayUtils.enable(mContext, SYSTEM_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++
++        setEnglishLocale();
++        assertResource(false, R.bool.b);
++        assertResource(false, com.android.internal.R.bool.config_annoy_dianne);
++    }
++
++    @Test
++    public void testReorderOverlays() throws Exception {
++        OverlayUtils.enable(mContext, APP_OVERLAY_1, mUserId);
++        OverlayUtils.enable(mContext, APP_OVERLAY_2, mUserId);
++        assertResource(2, R.integer.i);
++
++        OverlayUtils.reorder(mContext, APP_OVERLAY_2, APP_OVERLAY_1, mUserId);
++        assertResource(1, R.integer.i);
++    }
++
++    private void assertResource(boolean expected, int resid) throws Exception {
++        boolean actual = mResources.getBoolean(resid);
++        assertEquals(expected, actual);
++    }
++
++    private void assertResource(int expected, int resid) throws Exception {
++        int actual = mResources.getInteger(resid);
++        assertEquals(expected, actual);
++    }
++
++    private void assertResource(String expected, int resid) throws Exception {
++        String actual = mResources.getString(resid);
++        assertEquals(expected, actual);
++    }
++
++    private void assertResource(int[] expected, int resid) throws Exception {
++        int[] actual = mResources.getIntArray(resid);
++        assertEquals(expected.length, actual.length);
++        for (int i = 0; i < expected.length; i++) {
++            assertEquals(expected[i], actual[i]);
++        }
++    }
++
++    private boolean isApproxEqual(int expected, int actual, int tolerance) {
++        return Math.abs(expected - actual) < tolerance;
++    }
++
++    private void assertDrawableResource(int expected, int x, int y, int resid) throws Exception {
++        int[] actual = new int[1];
++        Bitmap bitmap = BitmapFactory.decodeResource(mResources, resid);
++        bitmap.getPixels(actual, 0, bitmap.getWidth(), x, y, 1, 1);
++        int tolerance = 5;
++
++        // The pixel decoding may produce slightly different values on different platforms:
++        // allow for some small variance in the expected vs actual value
++        assertTrue(String.format("alpha diff: expected=0x%08x actual=0x%08x", expected, actual[0]),
++                isApproxEqual(Color.alpha(expected), Color.alpha(actual[0]), tolerance));
++        assertTrue(String.format("red diff: expected=0x%08x actual=0x%08x", expected, actual[0]),
++                isApproxEqual(Color.red(expected), Color.red(actual[0]), tolerance));
++        assertTrue(String.format("green diff: expected=0x%08x actual=0x%08x", expected, actual[0]),
++                isApproxEqual(Color.green(expected), Color.green(actual[0]), tolerance));
++        assertTrue(String.format("blue diff: expected=0x%08x actual=0x%08x", expected, actual[0]),
++                isApproxEqual(Color.blue(expected), Color.blue(actual[0]), tolerance));
++    }
++
++    private void assertRawResource(int expected, int resid) throws Exception {
++        int actual = calculateRawResourceChecksum(resid);
++        assertEquals(String.format("expected=0x%08x actual=0x%08x", expected, actual),
++                expected, actual);
++    }
++
++    private void assertXmlResource(String expected, int resid, String tag, String attr)
++            throws Exception {
++        String actual = readXml(resid, tag, attr);
++        assertEquals(expected, actual);
++    }
++
++    private void assertAssetResource(String expected, String path) throws Exception {
++        String actual = readAsset(path);
++        assertEquals(expected, actual);
++    }
++
++    private static void setLocale(Resources res, Locale locale) {
++        Locale.setDefault(locale);
++        Configuration config = new Configuration();
++        config.locale = locale;
++        res.updateConfiguration(config, res.getDisplayMetrics());
++    }
++
++    private void setEnglishLocale() {
++        setLocale(mResources, new Locale("en", "US"));
++    }
++
++    private void setSwedishLocale() {
++        setLocale(mResources, new Locale("sv", "SE"));
++    }
++
++    private int calculateRawResourceChecksum(int resid) throws Exception {
++        InputStream input = null;
++        try {
++            input = mResources.openRawResource(resid);
++            int ch, checksum = 0;
++            while ((ch = input.read()) != -1) {
++                checksum = (checksum + ch) % 0xffddbb00;
++            }
++            return checksum;
++        } finally {
++            input.close();
++        }
++    }
++
++    private String readAsset(String path) throws Exception {
++        AssetManager am = mResources.getAssets();
++        StringBuilder sb = new StringBuilder();
++        BufferedReader br = null;
++        try {
++            String line;
++            InputStream is = am.open(path);
++            br = new BufferedReader(new InputStreamReader(is));
++            while ((line = br.readLine()) != null) {
++                sb.append(line);
++            }
++        } finally {
++            if (br != null) {
++                br.close();
++            }
++        }
++        return sb.toString();
++    }
++
++    /**
++     * Fetch the value of the first <tag attr="..."/> tag in XML resource resid.
++     */
++    private String readXml(int resid, String tag, String attr) throws Exception {
++        XmlPullParser parser = mResources.getXml(resid);
++        String value = null;
++        int type = parser.getEventType();
++        while (type != XmlPullParser.END_DOCUMENT) {
++            if (type == XmlPullParser.START_TAG && tag.equals(parser.getName())) {
++                value = parser.getAttributeValue(null, attr);
++                break;
++            }
++            type = parser.next();
++        }
++        return value;
++    }
++}
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/AndroidManifest.xml b/services/tests/servicestests/test-apks/app_overlay_1/AndroidManifest.xml
+new file mode 100644
+index 00000000000..5cc1491602c
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.app_overlay_1">
++    <overlay android:targetPackage="com.android.frameworks.servicestests"/>
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/assets/cookie.txt b/services/tests/servicestests/test-apks/app_overlay_1/assets/cookie.txt
+new file mode 100644
+index 00000000000..b06eff9e2b8
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/assets/cookie.txt
+@@ -0,0 +1 @@
++Lollipop
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/build b/services/tests/servicestests/test-apks/app_overlay_1/build
+new file mode 100644
+index 00000000000..037efacf5fb
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/build
+@@ -0,0 +1,25 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -A assets \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/platform.x509.pem \
++        "${T}"/build/target/product/security/platform.pk8 \
++        /tmp/apk \
++        ../../res/raw/app_overlay_1
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/res/drawable-nodpi/d.jpg b/services/tests/servicestests/test-apks/app_overlay_1/res/drawable-nodpi/d.jpg
+new file mode 100644
+index 0000000000000000000000000000000000000000..0d944d02d633b96b31299fef7567fbfdbc45b643
+GIT binary patch
+literal 399
+zcmex=<NpH&0WUXCHwH#VMg|WcWcdG&LD;z{HL)Z$MWH;iBtya7(>LJ%Z3brsR%R9!
+z7G_o;!OF_Y#?HgR4g~z%+?+gu{6a#4{DOkQVlv{wB2uD)f)a`nQnIr0^76vsN-9cn
+zDl&5Nav(z(fm+$w*!eg(_~b+cMdU~Z{|_(-axf?`C@?cBF)#@-G7B>PKf)jmaz7&j
+z5@2OyV+Tse2rw`)qslR}C>k;*G6@1@B^g1oNV*tU*%+DFIY1@~qUvH`U||q6{C|sq
+z2dIHbkXewyp5awzeBJKf7dcLzQYm@L>FyVJzDe$8;rWP@AH1w;R8pRDy7>j%QY^A4
+uzPaP&DWRS@i`@MJrldR-6?kF!TGrAj@bVOolc$9G=CeKIvnam*|0V#5f>GN5
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/matrix.xml b/services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/matrix.xml
+new file mode 100644
+index 00000000000..9cdc73e27ad
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/matrix.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="matrix_100100">400</integer>
++    <integer name="matrix_100101">400</integer>
++    <integer name="matrix_100110">400</integer>
++    <integer name="matrix_100111">400</integer>
++    <integer name="matrix_101100">400</integer>
++    <integer name="matrix_101101">400</integer>
++    <integer name="matrix_101110">400</integer>
++    <integer name="matrix_101111">400</integer>
++    <integer name="matrix_110100">400</integer>
++    <integer name="matrix_110101">400</integer>
++    <integer name="matrix_110110">400</integer>
++    <integer name="matrix_110111">400</integer>
++    <integer name="matrix_111100">400</integer>
++    <integer name="matrix_111101">400</integer>
++    <integer name="matrix_111110">400</integer>
++    <integer name="matrix_111111">400</integer>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/values.xml b/services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/values.xml
+new file mode 100644
+index 00000000000..4197b203147
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/res/values-sv/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="s">B</string>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/res/values/matrix.xml b/services/tests/servicestests/test-apks/app_overlay_1/res/values/matrix.xml
+new file mode 100644
+index 00000000000..922985aacb0
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/res/values/matrix.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="matrix_101000">300</integer>
++    <integer name="matrix_101001">300</integer>
++    <integer name="matrix_101010">300</integer>
++    <integer name="matrix_101011">300</integer>
++    <integer name="matrix_101100">300</integer>
++    <integer name="matrix_101101">300</integer>
++    <integer name="matrix_101110">300</integer>
++    <integer name="matrix_101111">300</integer>
++    <integer name="matrix_111000">300</integer>
++    <integer name="matrix_111001">300</integer>
++    <integer name="matrix_111010">300</integer>
++    <integer name="matrix_111011">300</integer>
++    <integer name="matrix_111100">300</integer>
++    <integer name="matrix_111101">300</integer>
++    <integer name="matrix_111110">300</integer>
++    <integer name="matrix_111111">300</integer>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/res/values/values.xml b/services/tests/servicestests/test-apks/app_overlay_1/res/values/values.xml
+new file mode 100644
+index 00000000000..99fe727a5fc
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/res/values/values.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="i">1</integer>
++    <string name="s">b</string>
++    <bool name="b">false</bool>
++    <integer-array name="i">
++        <item>4</item>
++        <item>5</item>
++    </integer-array>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_1/res/xml/cookie.xml b/services/tests/servicestests/test-apks/app_overlay_1/res/xml/cookie.xml
+new file mode 100644
+index 00000000000..a66f13ec2f1
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_1/res/xml/cookie.xml
+@@ -0,0 +1 @@
++<cookie value="Lollipop"/>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/AndroidManifest.xml b/services/tests/servicestests/test-apks/app_overlay_2/AndroidManifest.xml
+new file mode 100644
+index 00000000000..ad8e515aad9
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.app_overlay_2">
++    <overlay android:targetPackage="com.android.frameworks.servicestests"/>
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/assets/cookie.txt b/services/tests/servicestests/test-apks/app_overlay_2/assets/cookie.txt
+new file mode 100644
+index 00000000000..ef147010149
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/assets/cookie.txt
+@@ -0,0 +1 @@
++Marshmallow
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/build b/services/tests/servicestests/test-apks/app_overlay_2/build
+new file mode 100644
+index 00000000000..657550b61ec
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/build
+@@ -0,0 +1,25 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -A assets \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/platform.x509.pem \
++        "${T}"/build/target/product/security/platform.pk8 \
++        /tmp/apk \
++        ../../res/raw/app_overlay_2
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/res/drawable-nodpi/d.jpg b/services/tests/servicestests/test-apks/app_overlay_2/res/drawable-nodpi/d.jpg
+new file mode 100644
+index 0000000000000000000000000000000000000000..d153b22ed01a85cebc2eb70d9002bbf338b8142b
+GIT binary patch
+literal 410
+zcmex=<NpH&0WUXCHwH#VMg|WcWcdG&LD;z{HL)Z$MWH;iBtya7(>LJ%Z3brsR%R9!
+z7G_o;!OF_Y#?HgR4g~z%+?+gu{6a#4{DOkQVlv{wB2uD)f)a`nQnIr0^76vsN-9cn
+zDl&5Nav(z(fm+$w*!eg(_~b+cMdU~Z{|_(-axf?`C@?cBF)#@-G7B>PKf)jmaz7&j
+z5@2OyV*pCX2rw`)F(XT{C^7&w88RgTWhEIIfRaeM7+BdDnb<jiQWAn76OrXu7=YUT
+z-(uha>R=LN7G$tzxZdCOx9Z-aMGy7{P4MBHk`VY~+4OyXb{<iB>n#5yCPsW!5SR5*
+z34u~CR=3X`&QJSA%DoH}UQKE0k6tPv&Mq<~KSXIqj7(r-fmRTQt*V4b)pdo~?{k{8
+H|K9`v$V^gx
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/matrix.xml b/services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/matrix.xml
+new file mode 100644
+index 00000000000..ec4b6c03e5f
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/matrix.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="matrix_100001">600</integer>
++    <integer name="matrix_100011">600</integer>
++    <integer name="matrix_100101">600</integer>
++    <integer name="matrix_100111">600</integer>
++    <integer name="matrix_101001">600</integer>
++    <integer name="matrix_101011">600</integer>
++    <integer name="matrix_101101">600</integer>
++    <integer name="matrix_101111">600</integer>
++    <integer name="matrix_110001">600</integer>
++    <integer name="matrix_110011">600</integer>
++    <integer name="matrix_110101">600</integer>
++    <integer name="matrix_110111">600</integer>
++    <integer name="matrix_111001">600</integer>
++    <integer name="matrix_111011">600</integer>
++    <integer name="matrix_111101">600</integer>
++    <integer name="matrix_111111">600</integer>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/values.xml b/services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/values.xml
+new file mode 100644
+index 00000000000..100ad4b8398
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/res/values-sv/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="s">C</string>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/res/values/matrix.xml b/services/tests/servicestests/test-apks/app_overlay_2/res/values/matrix.xml
+new file mode 100644
+index 00000000000..c4c8fb5e5ed
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/res/values/matrix.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="matrix_100010">500</integer>
++    <integer name="matrix_100011">500</integer>
++    <integer name="matrix_100110">500</integer>
++    <integer name="matrix_100111">500</integer>
++    <integer name="matrix_101010">500</integer>
++    <integer name="matrix_101011">500</integer>
++    <integer name="matrix_101110">500</integer>
++    <integer name="matrix_101111">500</integer>
++    <integer name="matrix_110010">500</integer>
++    <integer name="matrix_110011">500</integer>
++    <integer name="matrix_110110">500</integer>
++    <integer name="matrix_110111">500</integer>
++    <integer name="matrix_111010">500</integer>
++    <integer name="matrix_111011">500</integer>
++    <integer name="matrix_111110">500</integer>
++    <integer name="matrix_111111">500</integer>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/res/values/values.xml b/services/tests/servicestests/test-apks/app_overlay_2/res/values/values.xml
+new file mode 100644
+index 00000000000..62707eeb7d0
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/res/values/values.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="i">2</integer>
++    <string name="s">c</string>
++    <bool name="b">true</bool>
++    <integer-array name="i">
++        <item>6</item>
++        <item>7</item>
++        <item>8</item>
++        <item>9</item>
++    </integer-array>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_2/res/xml/cookie.xml b/services/tests/servicestests/test-apks/app_overlay_2/res/xml/cookie.xml
+new file mode 100644
+index 00000000000..f89092fe730
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_2/res/xml/cookie.xml
+@@ -0,0 +1 @@
++<cookie value="Marshmallow"/>
+diff --git a/services/tests/servicestests/test-apks/other_app/AndroidManifest.xml b/services/tests/servicestests/test-apks/other_app/AndroidManifest.xml
+new file mode 100644
+index 00000000000..166c707b62c
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/other_app/AndroidManifest.xml
+@@ -0,0 +1,3 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.some_other_app">
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/other_app/build b/services/tests/servicestests/test-apks/other_app/build
+new file mode 100644
+index 00000000000..c76cc0ef7a3
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/other_app/build
+@@ -0,0 +1,24 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/platform.x509.pem \
++        "${T}"/build/target/product/security/platform.pk8 \
++        /tmp/apk \
++        ../../res/raw/some_other_app
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/other_app/res/values/values.xml b/services/tests/servicestests/test-apks/other_app/res/values/values.xml
+new file mode 100644
+index 00000000000..118af63b127
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/other_app/res/values/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="i">100</integer>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/other_app_overlay/AndroidManifest.xml b/services/tests/servicestests/test-apks/other_app_overlay/AndroidManifest.xml
+new file mode 100644
+index 00000000000..3eb7b501e53
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/other_app_overlay/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.some_other_app_overlay">
++    <overlay android:targetPackage="com.android.rrotests.some_other_app"/>
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/other_app_overlay/build b/services/tests/servicestests/test-apks/other_app_overlay/build
+new file mode 100644
+index 00000000000..97019a34a7e
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/other_app_overlay/build
+@@ -0,0 +1,24 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/platform.x509.pem \
++        "${T}"/build/target/product/security/platform.pk8 \
++        /tmp/apk \
++        ../../res/raw/some_other_app_overlay
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/other_app_overlay/res/values/values.xml b/services/tests/servicestests/test-apks/other_app_overlay/res/values/values.xml
+new file mode 100644
+index 00000000000..8e8a682c444
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/other_app_overlay/res/values/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="i">1234</integer>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/system_overlay_1/AndroidManifest.xml b/services/tests/servicestests/test-apks/system_overlay_1/AndroidManifest.xml
+new file mode 100644
+index 00000000000..8ebf7b86d60
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/system_overlay_1/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.system_overlay_1">
++    <overlay android:targetPackage="android"/>
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/system_overlay_1/build b/services/tests/servicestests/test-apks/system_overlay_1/build
+new file mode 100644
+index 00000000000..683217e0367
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/system_overlay_1/build
+@@ -0,0 +1,24 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/platform.x509.pem \
++        "${T}"/build/target/product/security/platform.pk8 \
++        /tmp/apk \
++        ../../res/raw/system_overlay_1
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/system_overlay_1/res/values/values.xml b/services/tests/servicestests/test-apks/system_overlay_1/res/values/values.xml
+new file mode 100644
+index 00000000000..c1e3de12059
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/system_overlay_1/res/values/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <bool name="config_annoy_dianne">false</bool>
++</resources>
+diff --git a/services/tests/servicestests/test-apks/system_overlay_2/AndroidManifest.xml b/services/tests/servicestests/test-apks/system_overlay_2/AndroidManifest.xml
+new file mode 100644
+index 00000000000..3a89ea0ceb6
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/system_overlay_2/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.system_overlay_2">
++    <overlay android:targetPackage="android"/>
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/system_overlay_2/build b/services/tests/servicestests/test-apks/system_overlay_2/build
+new file mode 100644
+index 00000000000..8d537bb066b
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/system_overlay_2/build
+@@ -0,0 +1,24 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/platform.x509.pem \
++        "${T}"/build/target/product/security/platform.pk8 \
++        /tmp/apk \
++        ../../res/raw/system_overlay_2
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/system_overlay_2/res/values/values.xml b/services/tests/servicestests/test-apks/system_overlay_2/res/values/values.xml
+new file mode 100644
+index 00000000000..30b0f532110
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/system_overlay_2/res/values/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <bool name="config_annoy_dianne">true</bool>
++</resources>
+-- 
+2.14.1
+

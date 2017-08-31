@@ -1,0 +1,1001 @@
+From bcc5d880886cd436ccffaa15f669fcf4a2f2dbdc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Tue, 14 Mar 2017 11:56:16 +0100
+Subject: [PATCH 11/15] Consolidate idmap path calculation
+
+Make IdmapManager the sole provider of paths to idmap files.
+
+Make ResourcesManager track paths to idmap files (instead of paths to
+overlay apks), and update variable and method names to reflect this.
+
+Change AssetManager.addOverlayPath to accept the path of an idmap file
+instead of the path of an overlay file. The idmap header contains all
+the required information: the overlay apk path, the target apk path to
+match it against.
+
+Change the IInstalld API: the caller now passes the idmap path to
+createIdmap and removeIdmap.
+
+Note: this commit depends on a commit in frameworks/native. Both commits
+have the same Change-Id.
+
+Test: bit FrameworksServicesTests:com.android.server.om.{OverlayManagerSettingsTests,OverlayManagerTests,RuntimeResourceOverlayTests}
+Change-Id: I5e57c7c19d68b47def1456767aa0db8d3a8e68b4
+---
+ core/java/android/app/ActivityThread.java          |  2 +-
+ .../android/app/ApplicationPackageManager.java     |  2 +-
+ core/java/android/app/ContextImpl.java             |  6 ++--
+ core/java/android/app/LoadedApk.java               | 14 ++++----
+ core/java/android/app/ResourcesManager.java        | 28 ++++++++--------
+ core/java/android/content/om/OverlayInfo.java      | 18 +++++++++--
+ core/java/android/content/pm/ApplicationInfo.java  | 19 +++++------
+ core/java/android/content/pm/PackageParser.java    |  3 +-
+ core/java/android/content/pm/PackageUserState.java |  5 ++-
+ core/java/android/content/res/ResourcesKey.java    | 18 +++++------
+ libs/androidfw/AssetManager.cpp                    | 37 ++--------------------
+ libs/androidfw/include/androidfw/AssetManager.h    |  2 +-
+ .../java/com/android/server/om/IdmapManager.java   | 27 +++++++++-------
+ .../android/server/om/OverlayManagerService.java   | 12 +++----
+ .../server/om/OverlayManagerServiceImpl.java       |  4 +--
+ .../android/server/om/OverlayManagerSettings.java  | 12 +++++--
+ .../core/java/com/android/server/pm/Installer.java |  8 ++---
+ .../android/server/pm/PackageManagerService.java   | 27 ++++------------
+ .../com/android/server/pm/PackageSettingBase.java  | 10 +++---
+ .../core/java/com/android/server/pm/Settings.java  |  8 ++---
+ .../server/om/OverlayManagerSettingsTests.java     |  6 ++++
+ .../com/android/server/pm/PackageParserTest.java   |  2 +-
+ 22 files changed, 129 insertions(+), 141 deletions(-)
+
+diff --git a/core/java/android/app/ActivityThread.java b/core/java/android/app/ActivityThread.java
+index 01e4ccebe82..e1812afa6fd 100644
+--- a/core/java/android/app/ActivityThread.java
++++ b/core/java/android/app/ActivityThread.java
+@@ -5116,7 +5116,7 @@ public final class ActivityThread {
+         }
+         synchronized (mResourcesManager) {
+             // Update all affected Resources objects to use new ResourcesImpl
+-            mResourcesManager.applyNewResourceDirsLocked(ai.sourceDir, ai.resourceDirs);
++            mResourcesManager.applyNewIdmapPathsLocked(ai.sourceDir, ai.idmapPaths);
+         }
+ 
+         ApplicationPackageManager.configurationChanged();
+diff --git a/core/java/android/app/ApplicationPackageManager.java b/core/java/android/app/ApplicationPackageManager.java
+index e5c420876c8..b6fdecc9e84 100644
+--- a/core/java/android/app/ApplicationPackageManager.java
++++ b/core/java/android/app/ApplicationPackageManager.java
+@@ -1363,7 +1363,7 @@ public class ApplicationPackageManager extends PackageManager {
+         final Resources r = mContext.mMainThread.getTopLevelResources(
+                     sameUid ? app.sourceDir : app.publicSourceDir,
+                     sameUid ? app.splitSourceDirs : app.splitPublicSourceDirs,
+-                    app.resourceDirs, app.sharedLibraryFiles, Display.DEFAULT_DISPLAY,
++                    app.idmapPaths, app.sharedLibraryFiles, Display.DEFAULT_DISPLAY,
+                     mContext.mPackageInfo);
+         if (r != null) {
+             return r;
+diff --git a/core/java/android/app/ContextImpl.java b/core/java/android/app/ContextImpl.java
+index 3ea0c83f2db..92de1266f61 100644
+--- a/core/java/android/app/ContextImpl.java
++++ b/core/java/android/app/ContextImpl.java
+@@ -1977,7 +1977,7 @@ class ContextImpl extends Context {
+         return ResourcesManager.getInstance().getResources(activityToken,
+                 pi.getResDir(),
+                 splitResDirs,
+-                pi.getOverlayDirs(),
++                pi.getIdmapPaths(),
+                 pi.getApplicationInfo().sharedLibraryFiles,
+                 displayId,
+                 overrideConfig,
+@@ -2066,7 +2066,7 @@ class ContextImpl extends Context {
+                 mActivityToken,
+                 mPackageInfo.getResDir(),
+                 paths,
+-                mPackageInfo.getOverlayDirs(),
++                mPackageInfo.getIdmapPaths(),
+                 mPackageInfo.getApplicationInfo().sharedLibraryFiles,
+                 displayId,
+                 null,
+@@ -2281,7 +2281,7 @@ class ContextImpl extends Context {
+         context.setResources(resourcesManager.createBaseActivityResources(activityToken,
+                 packageInfo.getResDir(),
+                 splitDirs,
+-                packageInfo.getOverlayDirs(),
++                packageInfo.getIdmapPaths(),
+                 packageInfo.getApplicationInfo().sharedLibraryFiles,
+                 displayId,
+                 overrideConfiguration,
+diff --git a/core/java/android/app/LoadedApk.java b/core/java/android/app/LoadedApk.java
+index 393909bbeef..594f09d9f57 100644
+--- a/core/java/android/app/LoadedApk.java
++++ b/core/java/android/app/LoadedApk.java
+@@ -96,7 +96,7 @@ public final class LoadedApk {
+     private ApplicationInfo mApplicationInfo;
+     private String mAppDir;
+     private String mResDir;
+-    private String[] mOverlayDirs;
++    private String[] mIdmapPaths;
+     private String[] mSharedLibraries;
+     private String mDataDir;
+     private String mLibDir;
+@@ -192,7 +192,7 @@ public final class LoadedApk {
+         mResDir = null;
+         mSplitAppDirs = null;
+         mSplitResDirs = null;
+-        mOverlayDirs = null;
++        mIdmapPaths = null;
+         mSharedLibraries = null;
+         mDataDir = null;
+         mDataDirFile = null;
+@@ -310,7 +310,7 @@ public final class LoadedApk {
+                 }
+ 
+                 mResources = ResourcesManager.getInstance().getResources(null, mResDir,
+-                        splitPaths, mOverlayDirs, mApplicationInfo.sharedLibraryFiles,
++                        splitPaths, mIdmapPaths, mApplicationInfo.sharedLibraryFiles,
+                         Display.DEFAULT_DISPLAY, null, getCompatibilityInfo(),
+                         getClassLoader());
+             }
+@@ -323,7 +323,7 @@ public final class LoadedApk {
+         mApplicationInfo = aInfo;
+         mAppDir = aInfo.sourceDir;
+         mResDir = aInfo.uid == myUid ? aInfo.sourceDir : aInfo.publicSourceDir;
+-        mOverlayDirs = aInfo.resourceDirs;
++        mIdmapPaths = aInfo.idmapPaths;
+         mSharedLibraries = aInfo.sharedLibraryFiles;
+         mDataDir = aInfo.dataDir;
+         mLibDir = aInfo.nativeLibraryDir;
+@@ -896,8 +896,8 @@ public final class LoadedApk {
+         return mSplitResDirs;
+     }
+ 
+-    public String[] getOverlayDirs() {
+-        return mOverlayDirs;
++    public String[] getIdmapPaths() {
++        return mIdmapPaths;
+     }
+ 
+     public String getDataDir() {
+@@ -931,7 +931,7 @@ public final class LoadedApk {
+             }
+ 
+             mResources = ResourcesManager.getInstance().getResources(null, mResDir,
+-                    splitPaths, mOverlayDirs, mApplicationInfo.sharedLibraryFiles,
++                    splitPaths, mIdmapPaths, mApplicationInfo.sharedLibraryFiles,
+                     Display.DEFAULT_DISPLAY, null, getCompatibilityInfo(),
+                     getClassLoader());
+         }
+diff --git a/core/java/android/app/ResourcesManager.java b/core/java/android/app/ResourcesManager.java
+index 80554fff75a..e8d9f67f5fa 100644
+--- a/core/java/android/app/ResourcesManager.java
++++ b/core/java/android/app/ResourcesManager.java
+@@ -293,8 +293,8 @@ public class ResourcesManager {
+             }
+         }
+ 
+-        if (key.mOverlayDirs != null) {
+-            for (final String idmapPath : key.mOverlayDirs) {
++        if (key.mIdmapPaths != null) {
++            for (final String idmapPath : key.mIdmapPaths) {
+                 assets.addOverlayPath(idmapPath);
+             }
+         }
+@@ -510,7 +510,7 @@ public class ResourcesManager {
+      * @param activityToken Represents an Activity.
+      * @param resDir The base resource path. Can be null (only framework resources will be loaded).
+      * @param splitResDirs An array of split resource paths. Can be null.
+-     * @param overlayDirs An array of overlay paths. Can be null.
++     * @param idmapPaths An array of overlay paths. Can be null.
+      * @param libDirs An array of resource library paths. Can be null.
+      * @param displayId The ID of the display for which to create the resources.
+      * @param overrideConfig The configuration to apply on top of the base configuration. Can be
+@@ -524,7 +524,7 @@ public class ResourcesManager {
+     public @Nullable Resources createBaseActivityResources(@NonNull IBinder activityToken,
+             @Nullable String resDir,
+             @Nullable String[] splitResDirs,
+-            @Nullable String[] overlayDirs,
++            @Nullable String[] idmapPaths,
+             @Nullable String[] libDirs,
+             int displayId,
+             @Nullable Configuration overrideConfig,
+@@ -536,7 +536,7 @@ public class ResourcesManager {
+             final ResourcesKey key = new ResourcesKey(
+                     resDir,
+                     splitResDirs,
+-                    overlayDirs,
++                    idmapPaths,
+                     libDirs,
+                     displayId,
+                     overrideConfig != null ? new Configuration(overrideConfig) : null, // Copy
+@@ -675,7 +675,7 @@ public class ResourcesManager {
+      * @param activityToken Represents an Activity. If null, global resources are assumed.
+      * @param resDir The base resource path. Can be null (only framework resources will be loaded).
+      * @param splitResDirs An array of split resource paths. Can be null.
+-     * @param overlayDirs An array of overlay paths. Can be null.
++     * @param idmapPaths An array of overlay paths. Can be null.
+      * @param libDirs An array of resource library paths. Can be null.
+      * @param displayId The ID of the display for which to create the resources.
+      * @param overrideConfig The configuration to apply on top of the base configuration. Can be
+@@ -690,7 +690,7 @@ public class ResourcesManager {
+     public @Nullable Resources getResources(@Nullable IBinder activityToken,
+             @Nullable String resDir,
+             @Nullable String[] splitResDirs,
+-            @Nullable String[] overlayDirs,
++            @Nullable String[] idmapPaths,
+             @Nullable String[] libDirs,
+             int displayId,
+             @Nullable Configuration overrideConfig,
+@@ -701,7 +701,7 @@ public class ResourcesManager {
+             final ResourcesKey key = new ResourcesKey(
+                     resDir,
+                     splitResDirs,
+-                    overlayDirs,
++                    idmapPaths,
+                     libDirs,
+                     displayId,
+                     overrideConfig != null ? new Configuration(overrideConfig) : null, // Copy
+@@ -803,7 +803,7 @@ public class ResourcesManager {
+                     // Create the new ResourcesKey with the rebased override config.
+                     final ResourcesKey newKey = new ResourcesKey(oldKey.mResDir,
+                             oldKey.mSplitResDirs,
+-                            oldKey.mOverlayDirs, oldKey.mLibDirs, displayId,
++                            oldKey.mIdmapPaths, oldKey.mLibDirs, displayId,
+                             rebasedOverrideConfig, oldKey.mCompatInfo);
+ 
+                     if (DEBUG) {
+@@ -946,7 +946,7 @@ public class ResourcesManager {
+                         updatedResourceKeys.put(impl, new ResourcesKey(
+                                 key.mResDir,
+                                 key.mSplitResDirs,
+-                                key.mOverlayDirs,
++                                key.mIdmapPaths,
+                                 newLibAssets,
+                                 key.mDisplayId,
+                                 key.mOverrideConfiguration,
+@@ -960,11 +960,11 @@ public class ResourcesManager {
+     }
+ 
+     // TODO(adamlesinski): Make this accept more than just overlay directories.
+-    final void applyNewResourceDirsLocked(@NonNull final String baseCodePath,
+-            @Nullable final String[] newResourceDirs) {
++    final void applyNewIdmapPathsLocked(@NonNull final String baseCodePath,
++            @NonNull final String[] newIdmapPaths) {
+         try {
+             Trace.traceBegin(Trace.TRACE_TAG_RESOURCES,
+-                    "ResourcesManager#applyNewResourceDirsLocked");
++                    "ResourcesManager#applyNewIdmapPathsLocked");
+ 
+             final ArrayMap<ResourcesImpl, ResourcesKey> updatedResourceKeys = new ArrayMap<>();
+             final int implCount = mResourceImpls.size();
+@@ -976,7 +976,7 @@ public class ResourcesManager {
+                     updatedResourceKeys.put(impl, new ResourcesKey(
+                             key.mResDir,
+                             key.mSplitResDirs,
+-                            newResourceDirs,
++                            newIdmapPaths,
+                             key.mLibDirs,
+                             key.mDisplayId,
+                             key.mOverrideConfiguration,
+diff --git a/core/java/android/content/om/OverlayInfo.java b/core/java/android/content/om/OverlayInfo.java
+index 1a207ba055f..91bed74185b 100644
+--- a/core/java/android/content/om/OverlayInfo.java
++++ b/core/java/android/content/om/OverlayInfo.java
+@@ -75,6 +75,14 @@ public final class OverlayInfo implements Parcelable {
+      */
+     public final String baseCodePath;
+ 
++    /**
++     * Full path to the idmap file for this overlay package; depending on the
++     * current {@see #state}, this file may or may not exist
++     *
++     * @see #STATE_NO_IDMAP
++     */
++    public final String idmapPath;
++
+     /**
+      * The state of this OverlayInfo as defined by the STATE_* constants in this class.
+      *
+@@ -97,15 +105,16 @@ public final class OverlayInfo implements Parcelable {
+      * @param state the new state for the source OverlayInfo
+      */
+     public OverlayInfo(@NonNull OverlayInfo source, int state) {
+-        this(source.packageName, source.targetPackageName, source.baseCodePath, state,
+-                source.userId);
++        this(source.packageName, source.targetPackageName, source.baseCodePath,
++                source.idmapPath, state, source.userId);
+     }
+ 
+     public OverlayInfo(@NonNull String packageName, @NonNull String targetPackageName,
+-            @NonNull String baseCodePath, int state, int userId) {
++            @NonNull String baseCodePath, @NonNull String idmapPath, int state, int userId) {
+         this.packageName = packageName;
+         this.targetPackageName = targetPackageName;
+         this.baseCodePath = baseCodePath;
++        this.idmapPath = idmapPath;
+         this.state = state;
+         this.userId = userId;
+         ensureValidState();
+@@ -115,6 +124,7 @@ public final class OverlayInfo implements Parcelable {
+         packageName = source.readString();
+         targetPackageName = source.readString();
+         baseCodePath = source.readString();
++        idmapPath = source.readString();
+         state = source.readInt();
+         userId = source.readInt();
+         ensureValidState();
+@@ -152,6 +162,7 @@ public final class OverlayInfo implements Parcelable {
+         dest.writeString(packageName);
+         dest.writeString(targetPackageName);
+         dest.writeString(baseCodePath);
++        dest.writeString(idmapPath);
+         dest.writeInt(state);
+         dest.writeInt(userId);
+     }
+@@ -222,6 +233,7 @@ public final class OverlayInfo implements Parcelable {
+         result = prime * result + ((packageName == null) ? 0 : packageName.hashCode());
+         result = prime * result + ((targetPackageName == null) ? 0 : targetPackageName.hashCode());
+         result = prime * result + ((baseCodePath == null) ? 0 : baseCodePath.hashCode());
++        result = prime * result + ((idmapPath == null) ? 0 : idmapPath.hashCode());
+         return result;
+     }
+ 
+diff --git a/core/java/android/content/pm/ApplicationInfo.java b/core/java/android/content/pm/ApplicationInfo.java
+index 06f7916be4b..119f091b1a7 100644
+--- a/core/java/android/content/pm/ApplicationInfo.java
++++ b/core/java/android/content/pm/ApplicationInfo.java
+@@ -693,13 +693,14 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+     public SparseArray<int[]> splitDependencies;
+ 
+     /**
+-     * Full paths to the locations of extra resource packages (runtime overlays)
+-     * this application uses. This field is only used if there are extra resource
+-     * packages, otherwise it is null.
++     * Full paths to the locations of the idmap files corresponding to the
++     * extra resource packages (runtime overlays) this application uses. This
++     * field is only used if there are extra resource packages, otherwise it is
++     * null.
+      *
+      * {@hide}
+      */
+-    public String[] resourceDirs;
++    public String[] idmapPaths;
+ 
+     /**
+      * String retrieved from the seinfo tag found in selinux policy. This value
+@@ -1041,8 +1042,8 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+                 && !Arrays.equals(splitSourceDirs, splitPublicSourceDirs)) {
+             pw.println(prefix + "splitPublicSourceDirs=" + Arrays.toString(splitPublicSourceDirs));
+         }
+-        if (resourceDirs != null) {
+-            pw.println(prefix + "resourceDirs=" + Arrays.toString(resourceDirs));
++        if (idmapPaths != null) {
++            pw.println(prefix + "idmapPaths=" + Arrays.toString(idmapPaths));
+         }
+         if ((flags&DUMP_FLAG_DETAILS) != 0 && seInfo != null) {
+             pw.println(prefix + "seinfo=" + seInfo);
+@@ -1156,7 +1157,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+         nativeLibraryRootRequiresIsa = orig.nativeLibraryRootRequiresIsa;
+         primaryCpuAbi = orig.primaryCpuAbi;
+         secondaryCpuAbi = orig.secondaryCpuAbi;
+-        resourceDirs = orig.resourceDirs;
++        idmapPaths = orig.idmapPaths;
+         seInfo = orig.seInfo;
+         seInfoUser = orig.seInfoUser;
+         sharedLibraryFiles = orig.sharedLibraryFiles;
+@@ -1224,7 +1225,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+         dest.writeInt(nativeLibraryRootRequiresIsa ? 1 : 0);
+         dest.writeString(primaryCpuAbi);
+         dest.writeString(secondaryCpuAbi);
+-        dest.writeStringArray(resourceDirs);
++        dest.writeStringArray(idmapPaths);
+         dest.writeString(seInfo);
+         dest.writeString(seInfoUser);
+         dest.writeStringArray(sharedLibraryFiles);
+@@ -1289,7 +1290,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+         nativeLibraryRootRequiresIsa = source.readInt() != 0;
+         primaryCpuAbi = source.readString();
+         secondaryCpuAbi = source.readString();
+-        resourceDirs = source.readStringArray();
++        idmapPaths = source.readStringArray();
+         seInfo = source.readString();
+         seInfoUser = source.readString();
+         sharedLibraryFiles = source.readStringArray();
+diff --git a/core/java/android/content/pm/PackageParser.java b/core/java/android/content/pm/PackageParser.java
+index c67376c2588..797531bbfd6 100644
+--- a/core/java/android/content/pm/PackageParser.java
++++ b/core/java/android/content/pm/PackageParser.java
+@@ -1994,6 +1994,7 @@ public class PackageParser {
+             String[] overlayPaths = mCallback.getOverlayPaths(pkgName, apkPath);
+             if (overlayPaths != null && overlayPaths.length > 0) {
+                 for (String overlayPath : overlayPaths) {
++                    // FIXME: this should be idmap paths, not apk paths
+                     res.getAssets().addOverlayPath(overlayPath);
+                 }
+             }
+@@ -6856,7 +6857,7 @@ public class PackageParser {
+             ai.category = FallbackCategoryProvider.getFallbackCategory(ai.packageName);
+         }
+         ai.seInfoUser = SELinuxUtil.assignSeinfoUser(state);
+-        ai.resourceDirs = state.overlayPaths;
++        ai.idmapPaths = state.idmapPaths;
+     }
+ 
+     public static ApplicationInfo generateApplicationInfo(Package p, int flags,
+diff --git a/core/java/android/content/pm/PackageUserState.java b/core/java/android/content/pm/PackageUserState.java
+index 470336cc70c..587cfdfc089 100644
+--- a/core/java/android/content/pm/PackageUserState.java
++++ b/core/java/android/content/pm/PackageUserState.java
+@@ -55,7 +55,7 @@ public class PackageUserState {
+     public ArraySet<String> disabledComponents;
+     public ArraySet<String> enabledComponents;
+ 
+-    public String[] overlayPaths;
++    public String[] idmapPaths;
+ 
+     public PackageUserState() {
+         installed = true;
+@@ -83,8 +83,7 @@ public class PackageUserState {
+         installReason = o.installReason;
+         disabledComponents = ArrayUtils.cloneOrNull(o.disabledComponents);
+         enabledComponents = ArrayUtils.cloneOrNull(o.enabledComponents);
+-        overlayPaths =
+-            o.overlayPaths == null ? null : Arrays.copyOf(o.overlayPaths, o.overlayPaths.length);
++        idmapPaths = o.idmapPaths == null ? null : Arrays.copyOf(o.idmapPaths, o.idmapPaths.length);
+     }
+ 
+     /**
+diff --git a/core/java/android/content/res/ResourcesKey.java b/core/java/android/content/res/ResourcesKey.java
+index b03ed1eee76..d5b1688e7e6 100644
+--- a/core/java/android/content/res/ResourcesKey.java
++++ b/core/java/android/content/res/ResourcesKey.java
+@@ -32,7 +32,7 @@ public final class ResourcesKey {
+     public final String[] mSplitResDirs;
+ 
+     @Nullable
+-    public final String[] mOverlayDirs;
++    public final String[] mIdmapPaths;
+ 
+     @Nullable
+     public final String[] mLibDirs;
+@@ -49,14 +49,14 @@ public final class ResourcesKey {
+ 
+     public ResourcesKey(@Nullable String resDir,
+                         @Nullable String[] splitResDirs,
+-                        @Nullable String[] overlayDirs,
++                        @Nullable String[] idmapPaths,
+                         @Nullable String[] libDirs,
+                         int displayId,
+                         @Nullable Configuration overrideConfig,
+                         @Nullable CompatibilityInfo compatInfo) {
+         mResDir = resDir;
+         mSplitResDirs = splitResDirs;
+-        mOverlayDirs = overlayDirs;
++        mIdmapPaths = idmapPaths;
+         mLibDirs = libDirs;
+         mDisplayId = displayId;
+         mOverrideConfiguration = new Configuration(overrideConfig != null
+@@ -66,7 +66,7 @@ public final class ResourcesKey {
+         int hash = 17;
+         hash = 31 * hash + Objects.hashCode(mResDir);
+         hash = 31 * hash + Arrays.hashCode(mSplitResDirs);
+-        hash = 31 * hash + Arrays.hashCode(mOverlayDirs);
++        hash = 31 * hash + Arrays.hashCode(mIdmapPaths);
+         hash = 31 * hash + Arrays.hashCode(mLibDirs);
+         hash = 31 * hash + mDisplayId;
+         hash = 31 * hash + Objects.hashCode(mOverrideConfiguration);
+@@ -82,7 +82,7 @@ public final class ResourcesKey {
+         if (mResDir != null && mResDir.startsWith(path)) {
+             return true;
+         } else {
+-            return anyStartsWith(mSplitResDirs, path) || anyStartsWith(mOverlayDirs, path)
++            return anyStartsWith(mSplitResDirs, path) || anyStartsWith(mIdmapPaths, path)
+                     || anyStartsWith(mLibDirs, path);
+         }
+     }
+@@ -121,7 +121,7 @@ public final class ResourcesKey {
+         if (!Arrays.equals(mSplitResDirs, peer.mSplitResDirs)) {
+             return false;
+         }
+-        if (!Arrays.equals(mOverlayDirs, peer.mOverlayDirs)) {
++        if (!Arrays.equals(mIdmapPaths, peer.mIdmapPaths)) {
+             return false;
+         }
+         if (!Arrays.equals(mLibDirs, peer.mLibDirs)) {
+@@ -149,9 +149,9 @@ public final class ResourcesKey {
+             builder.append(TextUtils.join(",", mSplitResDirs));
+         }
+         builder.append("]");
+-        builder.append(" mOverlayDirs=[");
+-        if (mOverlayDirs != null) {
+-            builder.append(TextUtils.join(",", mOverlayDirs));
++        builder.append(" mIdmapPaths=[");
++        if (mIdmapPaths != null) {
++            builder.append(TextUtils.join(",", mIdmapPaths));
+         }
+         builder.append("]");
+         builder.append(" mLibDirs=[");
+diff --git a/libs/androidfw/AssetManager.cpp b/libs/androidfw/AssetManager.cpp
+index 5603508eaf0..0e55ae2d3a1 100644
+--- a/libs/androidfw/AssetManager.cpp
++++ b/libs/androidfw/AssetManager.cpp
+@@ -62,7 +62,9 @@ static const bool kIsDebug = false;
+ static const char* kAssetsRoot = "assets";
+ static const char* kAppZipName = NULL; //"classes.jar";
+ static const char* kSystemAssets = "framework/framework-res.apk";
++#ifdef __ANDROID__
+ static const char* kResourceCache = "resource-cache";
++#endif
+ 
+ static const char* kExcludeExtension = ".EXCLUDE";
+ 
+@@ -80,32 +82,6 @@ const char* AssetManager::IDMAP_DIR = "/data/resource-cache";
+ 
+ namespace {
+ 
+-String8 idmapPathForPackagePath(const String8& pkgPath) {
+-    const char* root = getenv("ANDROID_DATA");
+-    LOG_ALWAYS_FATAL_IF(root == NULL, "ANDROID_DATA not set");
+-    String8 path(root);
+-    path.appendPath(kResourceCache);
+-
+-    char buf[256]; // 256 chars should be enough for anyone...
+-    strncpy(buf, pkgPath.string(), 255);
+-    buf[255] = '\0';
+-    char* filename = buf;
+-    while (*filename && *filename == '/') {
+-        ++filename;
+-    }
+-    char* p = filename;
+-    while (*p) {
+-        if (*p == '/') {
+-            *p = '@';
+-        }
+-        ++p;
+-    }
+-    path.appendPath(filename);
+-    path.append("@idmap");
+-
+-    return path;
+-}
+-
+ /*
+  * Like strdup(), but uses C++ "new" operator instead of malloc.
+  */
+@@ -217,10 +193,8 @@ bool AssetManager::addAssetPath(
+     return true;
+ }
+ 
+-bool AssetManager::addOverlayPath(const String8& packagePath, int32_t* cookie)
++bool AssetManager::addOverlayPath(const String8& idmapPath, int32_t* cookie)
+ {
+-    const String8 idmapPath = idmapPathForPackagePath(packagePath);
+-
+     AutoMutex _l(mLock);
+ 
+     for (size_t i = 0; i < mAssetPaths.size(); ++i) {
+@@ -246,11 +220,6 @@ bool AssetManager::addOverlayPath(const String8& packagePath, int32_t* cookie)
+     }
+     delete idmap;
+ 
+-    if (overlayPath != packagePath) {
+-        ALOGW("idmap file %s inconcistent: expected path %s does not match actual path %s\n",
+-                idmapPath.string(), packagePath.string(), overlayPath.string());
+-        return false;
+-    }
+     if (access(targetPath.string(), R_OK) != 0) {
+         ALOGW("failed to access file %s: %s\n", targetPath.string(), strerror(errno));
+         return false;
+diff --git a/libs/androidfw/include/androidfw/AssetManager.h b/libs/androidfw/include/androidfw/AssetManager.h
+index 0441b9d789e..fa50f860937 100644
+--- a/libs/androidfw/include/androidfw/AssetManager.h
++++ b/libs/androidfw/include/androidfw/AssetManager.h
+@@ -89,7 +89,7 @@ public:
+      */
+     bool addAssetPath(const String8& path, int32_t* cookie,
+         bool appAsLib=false, bool isSystemAsset=false);
+-    bool addOverlayPath(const String8& path, int32_t* cookie);
++    bool addOverlayPath(const String8& idmapPath, int32_t* cookie);
+ 
+     /*
+      * Convenience for adding the standard system assets.  Uses the
+diff --git a/services/core/java/com/android/server/om/IdmapManager.java b/services/core/java/com/android/server/om/IdmapManager.java
+index 807c343d0d1..38b134ed6a0 100644
+--- a/services/core/java/com/android/server/om/IdmapManager.java
++++ b/services/core/java/com/android/server/om/IdmapManager.java
+@@ -41,7 +41,10 @@ import java.io.IOException;
+  *
+  * Note: this class is subclassed in the OMS unit tests, and hence not marked as final.
+  */
+-class IdmapManager {
++public class IdmapManager {
++    // TODO(martenkongstad): when mEnabledOverlayPaths is moved from
++    // PackageManagerService to OverlayManagerService, make this class and
++    // getIdmapPath package private again
+     private final Installer mInstaller;
+ 
+     IdmapManager(final Installer installer) {
+@@ -58,11 +61,11 @@ class IdmapManager {
+         final int sharedGid = UserHandle.getSharedAppGid(targetPackage.applicationInfo.uid);
+         final String targetPath = targetPackage.applicationInfo.getBaseCodePath();
+         final String overlayPath = overlayPackage.applicationInfo.getBaseCodePath();
++        final String idmapPath = getIdmapPath(overlayPath, userId);
+         try {
+-            mInstaller.idmap(targetPath, overlayPath, sharedGid);
++            mInstaller.createIdmap(targetPath, overlayPath, sharedGid, idmapPath);
+         } catch (InstallerException e) {
+-            Slog.w(TAG, "failed to generate idmap for " + targetPath + " and "
+-                    + overlayPath + ": " + e.getMessage());
++            Slog.w(TAG, "failed to generate idmap " + idmapPath + ": " + e.getMessage());
+             return false;
+         }
+         return true;
+@@ -71,12 +74,12 @@ class IdmapManager {
+     boolean removeIdmap(@NonNull final OverlayInfo oi, final int userId) {
+         // unused userId: see comment in OverlayManagerServiceImpl.removeIdmapIfPossible
+         if (DEBUG) {
+-            Slog.d(TAG, "remove idmap for " + oi.baseCodePath);
++            Slog.d(TAG, "remove idmap " + oi.idmapPath);
+         }
+         try {
+-            mInstaller.removeIdmap(oi.baseCodePath);
++            mInstaller.removeIdmap(oi.idmapPath);
+         } catch (InstallerException e) {
+-            Slog.w(TAG, "failed to remove idmap for " + oi.baseCodePath + ": " + e.getMessage());
++            Slog.w(TAG, "failed to remove idmap " + oi.idmapPath + ": " + e.getMessage());
+             return false;
+         }
+         return true;
+@@ -84,15 +87,17 @@ class IdmapManager {
+ 
+     boolean idmapExists(@NonNull final OverlayInfo oi) {
+         // unused OverlayInfo.userId: see comment in OverlayManagerServiceImpl.removeIdmapIfPossible
+-        return new File(getIdmapPath(oi.baseCodePath)).isFile();
++        return oi.idmapPath != null ? new File(oi.idmapPath).isFile() : false;
+     }
+ 
+     boolean idmapExists(@NonNull final PackageInfo overlayPackage, final int userId) {
+-        // unused userId: see comment in OverlayManagerServiceImpl.removeIdmapIfPossible
+-        return new File(getIdmapPath(overlayPackage.applicationInfo.getBaseCodePath())).isFile();
++        final String idmapPath =
++            getIdmapPath(overlayPackage.applicationInfo.getBaseCodePath(), userId);
++        return new File(idmapPath).isFile();
+     }
+ 
+-    private String getIdmapPath(@NonNull final String baseCodePath) {
++    public static String getIdmapPath(@NonNull final String baseCodePath, final int userId) {
++        // unused userId: see comment in OverlayManagerServiceImpl.removeIdmapIfPossible
+         final StringBuilder sb = new StringBuilder("/data/resource-cache/");
+         sb.append(baseCodePath.substring(1).replace('/', '@'));
+         sb.append("@idmap");
+diff --git a/services/core/java/com/android/server/om/OverlayManagerService.java b/services/core/java/com/android/server/om/OverlayManagerService.java
+index 2940a6e3fc8..4a6ec64a1ba 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerService.java
++++ b/services/core/java/com/android/server/om/OverlayManagerService.java
+@@ -286,7 +286,7 @@ public final class OverlayManagerService extends SystemService {
+                     // never be setup in onSwitchUser(). We will switch to the system user right
+                     // after this, and its state will be setup there.
+                     final List<String> targets = mImpl.updateOverlaysForUser(users.get(i).id);
+-                    updateOverlayPaths(users.get(i).id, targets);
++                    updateIdmapPaths(users.get(i).id, targets);
+                 }
+             }
+         }
+@@ -458,7 +458,7 @@ public final class OverlayManagerService extends SystemService {
+                         synchronized (mLock) {
+                             targets = mImpl.updateOverlaysForUser(userId);
+                         }
+-                        updateOverlayPaths(userId, targets);
++                        updateIdmapPaths(userId, targets);
+                     }
+                     break;
+ 
+@@ -702,7 +702,7 @@ public final class OverlayManagerService extends SystemService {
+     /**
+      * Updates the target packages' set of enabled overlays in PackageManager.
+      */
+-    private void updateOverlayPaths(int userId, List<String> targetPackageNames) {
++    private void updateIdmapPaths(int userId, List<String> targetPackageNames) {
+         if (DEBUG) {
+             Slog.d(TAG, "Updating overlay assets");
+         }
+@@ -715,7 +715,7 @@ public final class OverlayManagerService extends SystemService {
+         final Map<String, List<String>> pendingChanges = new ArrayMap<>(targetPackageNames.size());
+         synchronized (mLock) {
+             final List<String> frameworkOverlays =
+-                mImpl.getEnabledOverlayPackageNames("android", userId);
++                mImpl.getEnabledIdmapPaths("android", userId);
+             final int N = targetPackageNames.size();
+             for (int i = 0; i < N; i++) {
+                 final String targetPackageName = targetPackageNames.get(i);
+@@ -723,7 +723,7 @@ public final class OverlayManagerService extends SystemService {
+                 if (!"android".equals(targetPackageName)) {
+                     list.addAll(frameworkOverlays);
+                 }
+-                list.addAll(mImpl.getEnabledOverlayPackageNames(targetPackageName, userId));
++                list.addAll(mImpl.getEnabledIdmapPaths(targetPackageName, userId));
+                 pendingChanges.put(targetPackageName, list);
+             }
+         }
+@@ -750,7 +750,7 @@ public final class OverlayManagerService extends SystemService {
+     }
+ 
+     private void updateAssets(final int userId, List<String> targetPackageNames) {
+-        updateOverlayPaths(userId, targetPackageNames);
++        updateIdmapPaths(userId, targetPackageNames);
+         final IActivityManager am = ActivityManager.getService();
+         try {
+             am.scheduleApplicationInfoChanged(targetPackageNames, userId);
+diff --git a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+index c3957f432f4..5e9dd6a3c03 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
++++ b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+@@ -464,7 +464,7 @@ final class OverlayManagerServiceImpl {
+         pw.println("Default overlays: " + TextUtils.join(";", mDefaultOverlays));
+     }
+ 
+-    List<String> getEnabledOverlayPackageNames(@NonNull final String targetPackageName,
++    List<String> getEnabledIdmapPaths(@NonNull final String targetPackageName,
+             final int userId) {
+         final List<OverlayInfo> overlays = mSettings.getOverlaysForTarget(targetPackageName, userId);
+         final List<String> paths = new ArrayList<>(overlays.size());
+@@ -472,7 +472,7 @@ final class OverlayManagerServiceImpl {
+         for (int i = 0; i < N; i++) {
+             final OverlayInfo oi = overlays.get(i);
+             if (oi.isEnabled()) {
+-                paths.add(oi.packageName);
++                paths.add(oi.idmapPath);
+             }
+         }
+         return paths;
+diff --git a/services/core/java/com/android/server/om/OverlayManagerSettings.java b/services/core/java/com/android/server/om/OverlayManagerSettings.java
+index 7d00423a2c4..e756d891872 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerSettings.java
++++ b/services/core/java/com/android/server/om/OverlayManagerSettings.java
+@@ -288,6 +288,7 @@ final class OverlayManagerSettings {
+             pw.print("mUserId............: "); pw.println(item.getUserId());
+             pw.print("mTargetPackageName.: "); pw.println(item.getTargetPackageName());
+             pw.print("mBaseCodePath......: "); pw.println(item.getBaseCodePath());
++            pw.print("mIdmapPath.........: "); pw.println(item.getIdmapPath());
+             pw.print("mState.............: "); pw.println(OverlayInfo.stateToString(item.getState()));
+             pw.print("mIsEnabled.........: "); pw.println(item.isEnabled());
+             pw.print("mIsStatic..........: "); pw.println(item.isStatic());
+@@ -413,6 +414,7 @@ final class OverlayManagerSettings {
+         private final String mPackageName;
+         private final String mTargetPackageName;
+         private String mBaseCodePath;
++        private String mIdmapPath;
+         private int mState;
+         private boolean mIsEnabled;
+         private OverlayInfo mCache;
+@@ -427,6 +429,7 @@ final class OverlayManagerSettings {
+             mUserId = userId;
+             mTargetPackageName = targetPackageName;
+             mBaseCodePath = baseCodePath;
++            mIdmapPath = IdmapManager.getIdmapPath(baseCodePath, userId);
+             mState = state;
+             mIsEnabled = isEnabled;
+             mCache = null;
+@@ -456,12 +459,17 @@ final class OverlayManagerSettings {
+         private boolean setBaseCodePath(@NonNull final String path) {
+             if (!mBaseCodePath.equals(path)) {
+                 mBaseCodePath = path;
++                mIdmapPath = IdmapManager.getIdmapPath(mBaseCodePath, mUserId);
+                 invalidateCache();
+                 return true;
+             }
+             return false;
+         }
+ 
++        private String getIdmapPath() {
++            return mIdmapPath;
++        }
++
+         private int getState() {
+             return mState;
+         }
+@@ -490,8 +498,8 @@ final class OverlayManagerSettings {
+ 
+         private OverlayInfo getOverlayInfo() {
+             if (mCache == null) {
+-                mCache = new OverlayInfo(mPackageName, mTargetPackageName, mBaseCodePath, mState,
+-                        mUserId);
++                mCache = new OverlayInfo(mPackageName, mTargetPackageName, mBaseCodePath, mIdmapPath,
++                        mState, mUserId);
+             }
+             return mCache;
+         }
+diff --git a/services/core/java/com/android/server/pm/Installer.java b/services/core/java/com/android/server/pm/Installer.java
+index c95b5c557b3..e890e5823bb 100644
+--- a/services/core/java/com/android/server/pm/Installer.java
++++ b/services/core/java/com/android/server/pm/Installer.java
+@@ -310,20 +310,20 @@ public class Installer extends SystemService {
+         }
+     }
+ 
+-    public void idmap(String targetApkPath, String overlayApkPath, int uid)
++    public void createIdmap(String targetApkPath, String overlayApkPath, int uid, String idmapPath)
+             throws InstallerException {
+         if (!checkBeforeRemote()) return;
+         try {
+-            mInstalld.idmap(targetApkPath, overlayApkPath, uid);
++            mInstalld.createIdmap(targetApkPath, overlayApkPath, uid, idmapPath);
+         } catch (Exception e) {
+             throw InstallerException.from(e);
+         }
+     }
+ 
+-    public void removeIdmap(String overlayApkPath) throws InstallerException {
++    public void removeIdmap(String idmapPath) throws InstallerException {
+         if (!checkBeforeRemote()) return;
+         try {
+-            mInstalld.removeIdmap(overlayApkPath);
++            mInstalld.removeIdmap(idmapPath);
+         } catch (Exception e) {
+             throw InstallerException.from(e);
+         }
+diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
+index 9e4ba8b4144..dff49198be1 100644
+--- a/services/core/java/com/android/server/pm/PackageManagerService.java
++++ b/services/core/java/com/android/server/pm/PackageManagerService.java
+@@ -273,6 +273,7 @@ import com.android.server.SystemConfig;
+ import com.android.server.SystemServerInitThreadPool;
+ import com.android.server.Watchdog;
+ import com.android.server.net.NetworkPolicyManagerInternal;
++import com.android.server.om.IdmapManager;
+ import com.android.server.pm.Installer.InstallerException;
+ import com.android.server.pm.PermissionsState.PermissionState;
+ import com.android.server.pm.Settings.DatabaseVersion;
+@@ -807,9 +808,10 @@ public class PackageManagerService extends IPackageManager.Stub
+                     //
+                     // OverlayManagerService will update each of them with a correct gid from its
+                     // target package app id.
+-                    mInstaller.idmap(targetPath, overlayPackage.baseCodePath,
+-                            UserHandle.getSharedAppGid(
+-                                    UserHandle.getUserGid(UserHandle.USER_SYSTEM)));
++                    final int userId = UserHandle.getSharedAppGid(
++                            UserHandle.getUserGid(UserHandle.USER_SYSTEM));
++                    mInstaller.createIdmap(targetPath, overlayPackage.baseCodePath,
++                            userId, IdmapManager.getIdmapPath(overlayPackage.baseCodePath, userId));
+                     if (overlayPathList == null) {
+                         overlayPathList = new ArrayList<String>();
+                     }
+@@ -24604,29 +24606,14 @@ Slog.v(TAG, ":: stepped forward, applying functor at tag " + parser.getName());
+ 
+         @Override
+         public boolean setEnabledOverlayPackages(int userId, @NonNull String targetPackageName,
+-                @Nullable List<String> overlayPackageNames) {
++                @Nullable List<String> idmapPaths) {
+             synchronized (mPackages) {
+                 if (targetPackageName == null || mPackages.get(targetPackageName) == null) {
+                     Slog.e(TAG, "failed to find package " + targetPackageName);
+                     return false;
+                 }
+-                ArrayList<String> overlayPaths = null;
+-                if (overlayPackageNames != null && overlayPackageNames.size() > 0) {
+-                    final int N = overlayPackageNames.size();
+-                    overlayPaths = new ArrayList<>(N);
+-                    for (int i = 0; i < N; i++) {
+-                        final String packageName = overlayPackageNames.get(i);
+-                        final PackageParser.Package pkg = mPackages.get(packageName);
+-                        if (pkg == null) {
+-                            Slog.e(TAG, "failed to find package " + packageName);
+-                            return false;
+-                        }
+-                        overlayPaths.add(pkg.baseCodePath);
+-                    }
+-                }
+-
+                 final PackageSetting ps = mSettings.mPackages.get(targetPackageName);
+-                ps.setOverlayPaths(overlayPaths, userId);
++                ps.setIdmapPaths(idmapPaths, userId);
+                 return true;
+             }
+         }
+diff --git a/services/core/java/com/android/server/pm/PackageSettingBase.java b/services/core/java/com/android/server/pm/PackageSettingBase.java
+index f6851275845..1f8229663ec 100644
+--- a/services/core/java/com/android/server/pm/PackageSettingBase.java
++++ b/services/core/java/com/android/server/pm/PackageSettingBase.java
+@@ -330,13 +330,13 @@ abstract class PackageSettingBase extends SettingBase {
+         modifyUserState(userId).installReason = installReason;
+     }
+ 
+-    void setOverlayPaths(List<String> overlayPaths, int userId) {
+-        modifyUserState(userId).overlayPaths = overlayPaths == null ? null :
+-            overlayPaths.toArray(new String[overlayPaths.size()]);
++    void setIdmapPaths(List<String> idmapPaths, int userId) {
++        modifyUserState(userId).idmapPaths = idmapPaths == null ? null :
++            idmapPaths.toArray(new String[idmapPaths.size()]);
+     }
+ 
+-    String[] getOverlayPaths(int userId) {
+-        return readUserState(userId).overlayPaths;
++    String[] getIdmapPaths(int userId) {
++        return readUserState(userId).idmapPaths;
+     }
+ 
+     /** Only use for testing. Do NOT use in production code. */
+diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
+index 45d0c585627..5f64b552f03 100644
+--- a/services/core/java/com/android/server/pm/Settings.java
++++ b/services/core/java/com/android/server/pm/Settings.java
+@@ -4859,10 +4859,10 @@ final class Settings {
+             pw.print(" instant=");
+             pw.println(ps.getInstantApp(user.id));
+ 
+-            String[] overlayPaths = ps.getOverlayPaths(user.id);
+-            if (overlayPaths != null && overlayPaths.length > 0) {
+-                pw.print(prefix); pw.println("  overlay paths:");
+-                for (String path : overlayPaths) {
++            String[] idmapPaths = ps.getIdmapPaths(user.id);
++            if (idmapPaths != null && idmapPaths.length > 0) {
++                pw.print(prefix); pw.println("  idmap paths:");
++                for (String path : idmapPaths) {
+                     pw.print(prefix); pw.print("    "); pw.println(path);
+                 }
+             }
+diff --git a/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java b/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java
+index e13e8610856..67760e0bb5f 100644
+--- a/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java
++++ b/services/tests/servicestests/src/com/android/server/om/OverlayManagerSettingsTests.java
+@@ -40,6 +40,7 @@ public class OverlayManagerSettingsTests {
+             "com.dummy.overlay_a",
+             "com.dummy.target",
+             "/data/app/com.dummy.overlay_a-1/base.apk",
++            "/data/resource-cache/com.dummy.overlay_a.idmap",
+             STATE_DISABLED,
+             0);
+ 
+@@ -47,6 +48,7 @@ public class OverlayManagerSettingsTests {
+             "com.dummy.overlay_b",
+             "com.dummy.target",
+             "/data/app/com.dummy.overlay_b-1/base.apk",
++            "/data/resource-cache/com.dummy.overlay_b.idmap",
+             STATE_DISABLED,
+             0);
+ 
+@@ -54,6 +56,7 @@ public class OverlayManagerSettingsTests {
+             "com.dummy.overlay_c",
+             "com.dummy.target",
+             "/data/app/com.dummy.overlay_c-1/base.apk",
++            "/data/resource-cache/com.dummy.overlay_c.idmap",
+             STATE_DISABLED,
+             0);
+ 
+@@ -61,6 +64,7 @@ public class OverlayManagerSettingsTests {
+             "com.dummy.overlay_a",
+             "com.dummy.target",
+             "/data/app/com.dummy.overlay_a-1/base.apk",
++            "/data/resource-cache/com.dummy.overlay_a.idmap",
+             STATE_DISABLED,
+             1);
+ 
+@@ -68,6 +72,7 @@ public class OverlayManagerSettingsTests {
+             "com.dummy.overlay_b",
+             "com.dummy.target",
+             "/data/app/com.dummy.overlay_b-1/base.apk",
++            "/data/resource-cache/com.dummy.overlay_b.idmap",
+             STATE_DISABLED,
+             1);
+ 
+@@ -199,6 +204,7 @@ public class OverlayManagerSettingsTests {
+                 "com.dummy.overlay_other",
+                 "com.dummy.some.other.target",
+                 "/data/app/com.dummy.overlay_other-1/base.apk",
++                "/data/resource-cache/com.dummy.overlay_other.idmap",
+                 STATE_DISABLED,
+                 0);
+         insert(otherTarget);
+diff --git a/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java b/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java
+index 0e8960e94c5..74743eee262 100644
+--- a/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java
++++ b/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java
+@@ -407,7 +407,7 @@ public class PackageParserTest {
+         assertEquals(a.publicSourceDir, that.publicSourceDir);
+         assertTrue(Arrays.equals(a.splitSourceDirs, that.splitSourceDirs));
+         assertTrue(Arrays.equals(a.splitPublicSourceDirs, that.splitPublicSourceDirs));
+-        assertTrue(Arrays.equals(a.resourceDirs, that.resourceDirs));
++        assertTrue(Arrays.equals(a.idmapPaths, that.idmapPaths));
+         assertEquals(a.seInfo, that.seInfo);
+         assertTrue(Arrays.equals(a.sharedLibraryFiles, that.sharedLibraryFiles));
+         assertEquals(a.dataDir, that.dataDir);
+-- 
+2.14.1
+

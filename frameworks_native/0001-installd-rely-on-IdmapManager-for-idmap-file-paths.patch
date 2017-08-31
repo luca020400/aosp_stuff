@@ -1,0 +1,158 @@
+From dad19ddfea68763d229b7445779bf24146fb1030 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Mon, 13 Mar 2017 14:31:02 +0100
+Subject: [PATCH] installd: rely on IdmapManager for idmap file paths
+
+Only the IdmapManager should have knowledge about where idmap files are
+stored. Pass the idmap path as a new parameter to idmap and removeIdmap
+instead of making installd calculate the path itself.
+
+SELinux rules prevent a malicious call to IInstalld.removeIdmap from
+unlinking files it shouldn't touch.
+
+Also, rename 'idmap' -> 'createIdmap'.
+
+Note: this commit depends on a commit in frameworks/base. Both commits
+have the same Change-Id.
+
+Change-Id: I5e57c7c19d68b47def1456767aa0db8d3a8e68b4
+---
+ cmds/installd/InstalldNativeService.cpp        | 62 +++-----------------------
+ cmds/installd/InstalldNativeService.h          |  6 +--
+ cmds/installd/binder/android/os/IInstalld.aidl |  5 ++-
+ 3 files changed, 13 insertions(+), 60 deletions(-)
+
+diff --git a/cmds/installd/InstalldNativeService.cpp b/cmds/installd/InstalldNativeService.cpp
+index 60c89a97b..112c7a45a 100644
+--- a/cmds/installd/InstalldNativeService.cpp
++++ b/cmds/installd/InstalldNativeService.cpp
+@@ -79,8 +79,6 @@ static constexpr const char* CACHE_DIR_POSTFIX = "/cache";
+ static constexpr const char* CODE_CACHE_DIR_POSTFIX = "/code_cache";
+ 
+ static constexpr const char *kIdMapPath = "/system/bin/idmap";
+-static constexpr const char* IDMAP_PREFIX = "/data/resource-cache/";
+-static constexpr const char* IDMAP_SUFFIX = "@idmap";
+ 
+ // NOTE: keep in sync with Installer
+ static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
+@@ -1999,61 +1997,21 @@ static bool delete_stale_idmap(const char* target_apk, const char* overlay_apk,
+     return false;
+ }
+ 
+-// Transform string /a/b/c.apk to (prefix)/a@b@c.apk@(suffix)
+-// eg /a/b/c.apk to /data/resource-cache/a@b@c.apk@idmap
+-static int flatten_path(const char *prefix, const char *suffix,
+-        const char *overlay_path, char *idmap_path, size_t N)
+-{
+-    if (overlay_path == NULL || idmap_path == NULL) {
+-        return -1;
+-    }
+-    const size_t len_overlay_path = strlen(overlay_path);
+-    // will access overlay_path + 1 further below; requires absolute path
+-    if (len_overlay_path < 2 || *overlay_path != '/') {
+-        return -1;
+-    }
+-    const size_t len_idmap_root = strlen(prefix);
+-    const size_t len_suffix = strlen(suffix);
+-    if (SIZE_MAX - len_idmap_root < len_overlay_path ||
+-            SIZE_MAX - (len_idmap_root + len_overlay_path) < len_suffix) {
+-        // additions below would cause overflow
+-        return -1;
+-    }
+-    if (N < len_idmap_root + len_overlay_path + len_suffix) {
+-        return -1;
+-    }
+-    memset(idmap_path, 0, N);
+-    snprintf(idmap_path, N, "%s%s%s", prefix, overlay_path + 1, suffix);
+-    char *ch = idmap_path + len_idmap_root;
+-    while (*ch != '\0') {
+-        if (*ch == '/') {
+-            *ch = '@';
+-        }
+-        ++ch;
+-    }
+-    return 0;
+-}
+-
+-binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
+-        const std::string& overlayApkPath, int32_t uid) {
++binder::Status InstalldNativeService::createIdmap(const std::string& targetApkPath,
++        const std::string& overlayApkPath, int32_t uid, const std::string& idmapPath) {
+     ENFORCE_UID(AID_SYSTEM);
+     std::lock_guard<std::recursive_mutex> lock(mLock);
+ 
+     const char* target_apk = targetApkPath.c_str();
+     const char* overlay_apk = overlayApkPath.c_str();
+-    ALOGV("idmap target_apk=%s overlay_apk=%s uid=%d\n", target_apk, overlay_apk, uid);
++    const char* idmap_path = idmapPath.c_str();
++    ALOGV("idmap target_apk=%s overlay_apk=%s uid=%d idmap_path=%s\n",
++            target_apk, overlay_apk, uid, idmap_path);
+ 
+     int idmap_fd = -1;
+-    char idmap_path[PATH_MAX];
+     struct stat idmap_stat;
+     bool outdated = false;
+ 
+-    if (flatten_path(IDMAP_PREFIX, IDMAP_SUFFIX, overlay_apk,
+-                idmap_path, sizeof(idmap_path)) == -1) {
+-        ALOGE("idmap cannot generate idmap path for overlay %s\n", overlay_apk);
+-        goto fail;
+-    }
+-
+     if (stat(idmap_path, &idmap_stat) < 0) {
+         outdated = true;
+     } else {
+@@ -2121,15 +2079,9 @@ fail:
+     return error();
+ }
+ 
+-binder::Status InstalldNativeService::removeIdmap(const std::string& overlayApkPath) {
+-    const char* overlay_apk = overlayApkPath.c_str();
+-    char idmap_path[PATH_MAX];
++binder::Status InstalldNativeService::removeIdmap(const std::string& idmapPath) {
++    const char* idmap_path = idmapPath.c_str();
+ 
+-    if (flatten_path(IDMAP_PREFIX, IDMAP_SUFFIX, overlay_apk,
+-                idmap_path, sizeof(idmap_path)) == -1) {
+-        ALOGE("idmap cannot generate idmap path for overlay %s\n", overlay_apk);
+-        return error();
+-    }
+     if (unlink(idmap_path) < 0) {
+         ALOGE("couldn't unlink idmap file %s\n", idmap_path);
+         return error();
+diff --git a/cmds/installd/InstalldNativeService.h b/cmds/installd/InstalldNativeService.h
+index 401131517..bf20764cf 100644
+--- a/cmds/installd/InstalldNativeService.h
++++ b/cmds/installd/InstalldNativeService.h
+@@ -94,9 +94,9 @@ public:
+     binder::Status clearAppProfiles(const std::string& packageName);
+     binder::Status destroyAppProfiles(const std::string& packageName);
+ 
+-    binder::Status idmap(const std::string& targetApkPath, const std::string& overlayApkPath,
+-            int32_t uid);
+-    binder::Status removeIdmap(const std::string& overlayApkPath);
++    binder::Status createIdmap(const std::string& targetApkPath, const std::string& overlayApkPath,
++            int32_t uid, const std::string& idmapPath);
++    binder::Status removeIdmap(const std::string& idmapPath);
+     binder::Status rmPackageDir(const std::string& packageDir);
+     binder::Status markBootComplete(const std::string& instructionSet);
+     binder::Status freeCache(const std::unique_ptr<std::string>& uuid, int64_t targetFreeBytes,
+diff --git a/cmds/installd/binder/android/os/IInstalld.aidl b/cmds/installd/binder/android/os/IInstalld.aidl
+index f09a3975d..2bbbf407d 100644
+--- a/cmds/installd/binder/android/os/IInstalld.aidl
++++ b/cmds/installd/binder/android/os/IInstalld.aidl
+@@ -60,8 +60,9 @@ interface IInstalld {
+     void clearAppProfiles(@utf8InCpp String packageName);
+     void destroyAppProfiles(@utf8InCpp String packageName);
+ 
+-    void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
+-    void removeIdmap(@utf8InCpp String overlayApkPath);
++    void createIdmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid,
++            @utf8InCpp String idmapPath);
++    void removeIdmap(@utf8InCpp String idmapPath);
+     void rmPackageDir(@utf8InCpp String packageDir);
+     void markBootComplete(@utf8InCpp String instructionSet);
+     void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes,
+-- 
+2.14.1
+

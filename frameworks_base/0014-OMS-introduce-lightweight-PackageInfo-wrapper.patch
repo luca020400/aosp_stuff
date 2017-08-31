@@ -1,0 +1,659 @@
+From b256d018a842e0bc2f7fea29157fb85ec0738132 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Tue, 4 Jul 2017 17:02:33 +0200
+Subject: [PATCH 14/15] OMS: introduce lightweight PackageInfo wrapper
+
+Create a lightweight version of PackageInfo for the overlay manager to
+use internally. This new class allows us to keep less data in memory and
+will allow us to create virtual packages to support overlays as splits.
+
+Test: bit FrameworksServicesTests:com.android.server.om.{OverlayManagerSettingsTests,OverlayManagerTests,RuntimeResourceOverlayTests}
+Change-Id: Ie75792cd0f6fb4989a035742b27ac6aa8156c332
+---
+ .../java/com/android/server/om/IdmapManager.java   |  15 +--
+ .../android/server/om/OverlayManagerService.java   | 150 ++++++++++++---------
+ .../server/om/OverlayManagerServiceImpl.java       |  62 +++++----
+ .../com/android/server/om/PackageInfoLite.java     |  40 ++++++
+ .../com/android/server/om/OverlayManagerTests.java |  27 ++--
+ 5 files changed, 177 insertions(+), 117 deletions(-)
+ create mode 100644 services/core/java/com/android/server/om/PackageInfoLite.java
+
+diff --git a/services/core/java/com/android/server/om/IdmapManager.java b/services/core/java/com/android/server/om/IdmapManager.java
+index 38b134ed6a0..d0602ee1fdd 100644
+--- a/services/core/java/com/android/server/om/IdmapManager.java
++++ b/services/core/java/com/android/server/om/IdmapManager.java
+@@ -21,7 +21,6 @@ import static com.android.server.om.OverlayManagerService.TAG;
+ 
+ import android.annotation.NonNull;
+ import android.content.om.OverlayInfo;
+-import android.content.pm.PackageInfo;
+ import android.os.UserHandle;
+ import android.util.Slog;
+ 
+@@ -51,16 +50,16 @@ public class IdmapManager {
+         mInstaller = installer;
+     }
+ 
+-    boolean createIdmap(@NonNull final PackageInfo targetPackage,
+-            @NonNull final PackageInfo overlayPackage, int userId) {
++    boolean createIdmap(@NonNull final PackageInfoLite targetPackage,
++            @NonNull final PackageInfoLite overlayPackage, int userId) {
+         // unused userId: see comment in OverlayManagerServiceImpl.removeIdmapIfPossible
+         if (DEBUG) {
+             Slog.d(TAG, "create idmap for " + targetPackage.packageName + " and "
+                     + overlayPackage.packageName);
+         }
+-        final int sharedGid = UserHandle.getSharedAppGid(targetPackage.applicationInfo.uid);
+-        final String targetPath = targetPackage.applicationInfo.getBaseCodePath();
+-        final String overlayPath = overlayPackage.applicationInfo.getBaseCodePath();
++        final int sharedGid = UserHandle.getSharedAppGid(targetPackage.uid);
++        final String targetPath = targetPackage.codePath;
++        final String overlayPath = overlayPackage.codePath;
+         final String idmapPath = getIdmapPath(overlayPath, userId);
+         try {
+             mInstaller.createIdmap(targetPath, overlayPath, sharedGid, idmapPath);
+@@ -90,9 +89,9 @@ public class IdmapManager {
+         return oi.idmapPath != null ? new File(oi.idmapPath).isFile() : false;
+     }
+ 
+-    boolean idmapExists(@NonNull final PackageInfo overlayPackage, final int userId) {
++    boolean idmapExists(@NonNull final PackageInfoLite overlayPackage, final int userId) {
+         final String idmapPath =
+-            getIdmapPath(overlayPackage.applicationInfo.getBaseCodePath(), userId);
++            getIdmapPath(overlayPackage.codePath, userId);
+         return new File(idmapPath).isFile();
+     }
+ 
+diff --git a/services/core/java/com/android/server/om/OverlayManagerService.java b/services/core/java/com/android/server/om/OverlayManagerService.java
+index 4a6ec64a1ba..4e6f014f86b 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerService.java
++++ b/services/core/java/com/android/server/om/OverlayManagerService.java
+@@ -366,15 +366,16 @@ public final class OverlayManagerService extends SystemService {
+                 @NonNull final int[] userIds) {
+             for (final int userId : userIds) {
+                 synchronized (mLock) {
+-                    final PackageInfo pi = mPackageManager.getPackageInfo(packageName, userId,
+-                            false);
+-                    if (pi != null) {
+-                        mPackageManager.cachePackageInfo(packageName, userId, pi);
+-                        if (!isOverlayPackage(pi)) {
+-                            mImpl.onTargetPackageAdded(packageName, userId);
+-                        } else {
+-                            mImpl.onOverlayPackageAdded(packageName, userId);
+-                        }
++                    final PackageInfo pi = mPackageManager.getPackageInfo(packageName, userId);
++                    if (pi == null) {
++                        continue;
++                    }
++                    final PackageInfoLite pil = mPackageManager.parsePackageInfo(pi);
++                    mPackageManager.cachePackageInfoLite(packageName, userId, pil);
++                    if (!isOverlayPackage(pil)) {
++                        mImpl.onTargetPackageAdded(packageName, userId);
++                    } else {
++                        mImpl.onOverlayPackageAdded(packageName, userId);
+                     }
+                 }
+             }
+@@ -384,15 +385,16 @@ public final class OverlayManagerService extends SystemService {
+                 @NonNull final int[] userIds) {
+             for (int userId : userIds) {
+                 synchronized (mLock) {
+-                    final PackageInfo pi = mPackageManager.getPackageInfo(packageName, userId,
+-                            false);
+-                    if (pi != null) {
+-                        mPackageManager.cachePackageInfo(packageName, userId, pi);
+-                        if (!isOverlayPackage(pi)) {
+-                            mImpl.onTargetPackageChanged(packageName, userId);
+-                        } else {
+-                            mImpl.onOverlayPackageChanged(packageName, userId);
+-                        }
++                    final PackageInfo pi = mPackageManager.getPackageInfo(packageName, userId);
++                    if (pi == null) {
++                        continue;
++                    }
++                    final PackageInfoLite pil = mPackageManager.parsePackageInfo(pi);
++                    mPackageManager.cachePackageInfoLite(packageName, userId, pil);
++                    if (!isOverlayPackage(pil)) {
++                        mImpl.onTargetPackageChanged(packageName, userId);
++                    } else {
++                        mImpl.onOverlayPackageChanged(packageName, userId);
+                     }
+                 }
+             }
+@@ -402,7 +404,7 @@ public final class OverlayManagerService extends SystemService {
+                 @NonNull final int[] userIds) {
+             for (int userId : userIds) {
+                 synchronized (mLock) {
+-                    mPackageManager.forgetPackageInfo(packageName, userId);
++                    mPackageManager.forgetPackageInfoLite(packageName, userId);
+                     final OverlayInfo oi = mImpl.getOverlayInfo(packageName, userId);
+                     if (oi == null) {
+                         mImpl.onTargetPackageUpgrading(packageName, userId);
+@@ -417,15 +419,16 @@ public final class OverlayManagerService extends SystemService {
+                 @NonNull final int[] userIds) {
+             for (int userId : userIds) {
+                 synchronized (mLock) {
+-                    final PackageInfo pi = mPackageManager.getPackageInfo(packageName, userId,
+-                            false);
+-                    if (pi != null) {
+-                        mPackageManager.cachePackageInfo(packageName, userId, pi);
+-                        if (!isOverlayPackage(pi)) {
+-                            mImpl.onTargetPackageUpgraded(packageName, userId);
+-                        } else {
+-                            mImpl.onOverlayPackageUpgraded(packageName, userId);
+-                        }
++                    final PackageInfo pi = mPackageManager.getPackageInfo(packageName, userId);
++                    if (pi == null) {
++                        continue;
++                    }
++                    final PackageInfoLite pil = mPackageManager.parsePackageInfo(pi);
++                    mPackageManager.cachePackageInfoLite(packageName, userId, pil);
++                    if (!isOverlayPackage(pil)) {
++                        mImpl.onTargetPackageUpgraded(packageName, userId);
++                    } else {
++                        mImpl.onOverlayPackageUpgraded(packageName, userId);
+                     }
+                 }
+             }
+@@ -435,7 +438,7 @@ public final class OverlayManagerService extends SystemService {
+                 @NonNull final int[] userIds) {
+             for (int userId : userIds) {
+                 synchronized (mLock) {
+-                    mPackageManager.forgetPackageInfo(packageName, userId);
++                    mPackageManager.forgetPackageInfoLite(packageName, userId);
+                     final OverlayInfo oi = mImpl.getOverlayInfo(packageName, userId);
+                     if (oi == null) {
+                         mImpl.onTargetPackageRemoved(packageName, userId);
+@@ -466,7 +469,7 @@ public final class OverlayManagerService extends SystemService {
+                     if (userId != UserHandle.USER_NULL) {
+                         synchronized (mLock) {
+                             mImpl.onUserRemoved(userId);
+-                            mPackageManager.forgetAllPackageInfos(userId);
++                            mPackageManager.forgetAllPackageInfoLites(userId);
+                         }
+                     }
+                     break;
+@@ -668,8 +671,8 @@ public final class OverlayManagerService extends SystemService {
+         }
+     };
+ 
+-    private boolean isOverlayPackage(@NonNull final PackageInfo pi) {
+-        return pi != null && pi.overlayTarget != null;
++    private boolean isOverlayPackage(@NonNull final PackageInfoLite pil) {
++        return pil != null && pil.overlayTarget != null;
+     }
+ 
+     private final class OverlayChangeListener
+@@ -823,36 +826,42 @@ public final class OverlayManagerService extends SystemService {
+         // intent, querying the PackageManagerService for the actual current
+         // state may lead to contradictions within OMS. Better then to lag
+         // behind until all pending intents have been processed.
+-        private final SparseArray<HashMap<String, PackageInfo>> mCache = new SparseArray<>();
++        private final SparseArray<HashMap<String, PackageInfoLite>> mCache = new SparseArray<>();
+ 
+         PackageManagerHelper() {
+             mPackageManager = getPackageManager();
+             mPackageManagerInternal = LocalServices.getService(PackageManagerInternal.class);
+         }
+ 
+-        public PackageInfo getPackageInfo(@NonNull final String packageName, final int userId,
+-                final boolean useCache) {
+-            if (useCache) {
+-                final PackageInfo cachedPi = getCachedPackageInfo(packageName, userId);
+-                if (cachedPi != null) {
+-                    return cachedPi;
+-                }
+-            }
++        public PackageInfoLite parsePackageInfo(@NonNull final PackageInfo pi) {
++            return new PackageInfoLite(pi.packageName, pi.overlayTarget, pi.applicationInfo.uid,
++                    pi.isStaticOverlay, pi.overlayPriority, pi.applicationInfo.getBaseCodePath());
++        }
++
++        public PackageInfo getPackageInfo(@NonNull final String packageName, final int userId) {
+             try {
+-                final PackageInfo pi = mPackageManager.getPackageInfo(packageName, 0, userId);
+-                if (useCache && pi != null) {
+-                    cachePackageInfo(packageName, userId, pi);
+-                }
+-                return pi;
++                return mPackageManager.getPackageInfo(packageName, 0, userId);
+             } catch (RemoteException e) {
+                 // Intentionally left empty.
+             }
+             return null;
+         }
+ 
+-        @Override
+-        public PackageInfo getPackageInfo(@NonNull final String packageName, final int userId) {
+-            return getPackageInfo(packageName, userId, true);
++        public PackageInfoLite getPackageInfoLite(@NonNull final String packageName,
++                final int userId) {
++            final PackageInfoLite cachedPil = getCachedPackageInfoLite(packageName, userId);
++            if (cachedPil != null) {
++                return cachedPil;
++            }
++            final PackageInfo pi = getPackageInfo(packageName, userId);
++            if (pi == null) {
++                return null;
++            }
++            final PackageInfoLite pil = new PackageInfoLite(pi.packageName, pi.overlayTarget,
++                    pi.applicationInfo.uid, pi.isStaticOverlay, pi.overlayPriority,
++                    pi.applicationInfo.getBaseCodePath());
++            cachePackageInfoLite(packageName, userId, pil);
++            return pil;
+         }
+ 
+         @Override
+@@ -870,19 +879,22 @@ public final class OverlayManagerService extends SystemService {
+         }
+ 
+         @Override
+-        public List<PackageInfo> getOverlayPackages(final int userId) {
+-            return mPackageManagerInternal.getOverlayPackages(userId);
+-        }
+-
+-        public PackageInfo getCachedPackageInfo(@NonNull final String packageName,
+-                final int userId) {
+-            final HashMap<String, PackageInfo> map = mCache.get(userId);
+-            return map == null ? null : map.get(packageName);
++        public List<PackageInfoLite> getOverlayPackages(final int userId) {
++            List<PackageInfo> pis = mPackageManagerInternal.getOverlayPackages(userId);
++            final int N = pis.size();
++            if (N == 0) {
++                return Collections.emptyList();
++            }
++            List<PackageInfoLite> pils = new ArrayList<>(N);
++            for (int i = 0; i < N; i++) {
++                pils.add(parsePackageInfo(pis.get(i)));
++            }
++            return pils;
+         }
+ 
+-        public void cachePackageInfo(@NonNull final String packageName, final int userId,
+-                @NonNull final PackageInfo pi) {
+-            HashMap<String, PackageInfo> map = mCache.get(userId);
++        public void cachePackageInfoLite(@NonNull final String packageName, final int userId,
++                @NonNull final PackageInfoLite pi) {
++            HashMap<String, PackageInfoLite> map = mCache.get(userId);
+             if (map == null) {
+                 map = new HashMap<>();
+                 mCache.put(userId, map);
+@@ -890,8 +902,8 @@ public final class OverlayManagerService extends SystemService {
+             map.put(packageName, pi);
+         }
+ 
+-        public void forgetPackageInfo(@NonNull final String packageName, final int userId) {
+-            final HashMap<String, PackageInfo> map = mCache.get(userId);
++        public void forgetPackageInfoLite(@NonNull final String packageName, final int userId) {
++            final HashMap<String, PackageInfoLite> map = mCache.get(userId);
+             if (map == null) {
+                 return;
+             }
+@@ -901,15 +913,21 @@ public final class OverlayManagerService extends SystemService {
+             }
+         }
+ 
+-        public void forgetAllPackageInfos(final int userId) {
++        public void forgetAllPackageInfoLites(final int userId) {
+             mCache.delete(userId);
+         }
+ 
++        private PackageInfoLite getCachedPackageInfoLite(@NonNull final String packageName,
++                final int userId) {
++            final HashMap<String, PackageInfoLite> map = mCache.get(userId);
++            return map == null ? null : map.get(packageName);
++        }
++
+         private static final String TAB1 = "    ";
+         private static final String TAB2 = TAB1 + TAB1;
+ 
+         public void dump(@NonNull final PrintWriter pw, final boolean verbose) {
+-            pw.println("PackageInfo cache");
++            pw.println("PackageInfoLite cache");
+ 
+             if (!verbose) {
+                 int count = 0;
+@@ -931,8 +949,8 @@ public final class OverlayManagerService extends SystemService {
+             for (int i = 0; i < N; i++) {
+                 final int userId = mCache.keyAt(i);
+                 pw.println(TAB1 + "User " + userId);
+-                final HashMap<String, PackageInfo> map = mCache.get(userId);
+-                for (Map.Entry<String, PackageInfo> entry : map.entrySet()) {
++                final HashMap<String, PackageInfoLite> map = mCache.get(userId);
++                for (Map.Entry<String, PackageInfoLite> entry : map.entrySet()) {
+                     pw.println(TAB2 + entry.getKey() + ": " + entry.getValue());
+                 }
+             }
+diff --git a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+index 1fd25a9ab93..7275343e10e 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
++++ b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+@@ -30,7 +30,6 @@ import static com.android.server.om.OverlayManagerService.TAG;
+ import android.annotation.NonNull;
+ import android.annotation.Nullable;
+ import android.content.om.OverlayInfo;
+-import android.content.pm.PackageInfo;
+ import android.text.TextUtils;
+ import android.util.ArrayMap;
+ import android.util.ArraySet;
+@@ -99,16 +98,16 @@ final class OverlayManagerServiceImpl {
+             }
+         }
+ 
+-        List<PackageInfo> overlayPackages = mPackageManager.getOverlayPackages(newUserId);
++        List<PackageInfoLite> overlayPackages = mPackageManager.getOverlayPackages(newUserId);
+         final int overlayPackagesSize = overlayPackages.size();
+         for (int i = 0; i < overlayPackagesSize; i++) {
+-            final PackageInfo overlayPackage = overlayPackages.get(i);
++            final PackageInfoLite overlayPackage = overlayPackages.get(i);
+             final OverlayInfo oi = storedOverlayInfos.get(overlayPackage.packageName);
+             if (oi == null || !oi.targetPackageName.equals(overlayPackage.overlayTarget)) {
+                 // Update the overlay if it didn't exist or had the wrong target package.
+                 mSettings.init(overlayPackage.packageName, newUserId,
+                         overlayPackage.overlayTarget,
+-                        overlayPackage.applicationInfo.getBaseCodePath(),
++                        overlayPackage.codePath,
+                         overlayPackage.isStaticOverlay, overlayPackage.overlayPriority);
+ 
+                 if (oi == null) {
+@@ -154,7 +153,7 @@ final class OverlayManagerServiceImpl {
+         final Iterator<String> iter = packagesToUpdateAssets.iterator();
+         while (iter.hasNext()) {
+             String targetPackageName = iter.next();
+-            if (mPackageManager.getPackageInfo(targetPackageName, newUserId) == null) {
++            if (mPackageManager.getPackageInfoLite(targetPackageName, newUserId) == null) {
+                 iter.remove();
+             }
+         }
+@@ -228,7 +227,8 @@ final class OverlayManagerServiceImpl {
+         final int N = ois.size();
+         for (int i = 0; i < N; i++) {
+             final OverlayInfo oi = ois.get(i);
+-            final PackageInfo overlayPackage = mPackageManager.getPackageInfo(oi.packageName, userId);
++            final PackageInfoLite overlayPackage =
++                mPackageManager.getPackageInfoLite(oi.packageName, userId);
+             if (overlayPackage == null) {
+                 modified |= mSettings.remove(oi.packageName, oi.userId);
+                 removeIdmapIfPossible(oi);
+@@ -249,7 +249,8 @@ final class OverlayManagerServiceImpl {
+             Slog.d(TAG, "onOverlayPackageAdded packageName=" + packageName + " userId=" + userId);
+         }
+ 
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null) {
+             Slog.w(TAG, "overlay package " + packageName + " was added, but couldn't be found");
+             onOverlayPackageRemoved(packageName, userId);
+@@ -257,7 +258,7 @@ final class OverlayManagerServiceImpl {
+         }
+ 
+         mSettings.init(packageName, userId, overlayPackage.overlayTarget,
+-                overlayPackage.applicationInfo.getBaseCodePath(), overlayPackage.isStaticOverlay,
++                overlayPackage.codePath, overlayPackage.isStaticOverlay,
+                 overlayPackage.overlayPriority);
+         try {
+             if (updateState(overlayPackage.overlayTarget, packageName, userId, 0)) {
+@@ -305,7 +306,7 @@ final class OverlayManagerServiceImpl {
+             Slog.d(TAG, "onOverlayPackageUpgraded packageName=" + packageName + " userId=" + userId);
+         }
+ 
+-        final PackageInfo pkg = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite pkg = mPackageManager.getPackageInfoLite(packageName, userId);
+         if (pkg == null) {
+             Slog.w(TAG, "overlay package " + packageName + " was upgraded, but couldn't be found");
+             onOverlayPackageRemoved(packageName, userId);
+@@ -319,9 +320,8 @@ final class OverlayManagerServiceImpl {
+                 mListener.onOverlaysChanged(pkg.overlayTarget, userId);
+             } else {
+                 mSettings.remove(packageName, userId);
+-                mSettings.init(packageName, userId, pkg.overlayTarget,
+-                        pkg.applicationInfo.getBaseCodePath(), pkg.isStaticOverlay,
+-                        pkg.overlayPriority);
++                mSettings.init(packageName, userId, pkg.overlayTarget, pkg.codePath,
++                        pkg.isStaticOverlay, pkg.overlayPriority);
+                 updateState(pkg.overlayTarget, packageName, userId, 0);
+                 mListener.onOverlaysChanged(pkg.overlayTarget, userId);
+             }
+@@ -370,7 +370,8 @@ final class OverlayManagerServiceImpl {
+                         packageName, enable, userId));
+         }
+ 
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null) {
+             return false;
+         }
+@@ -399,7 +400,8 @@ final class OverlayManagerServiceImpl {
+             Slog.d(TAG, String.format("setEnabledExclusive packageName=%s userId=%d", packageName, userId));
+         }
+ 
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null) {
+             return false;
+         }
+@@ -416,8 +418,8 @@ final class OverlayManagerServiceImpl {
+             allOverlays.remove(oi);
+             for (int i = 0; i < allOverlays.size(); i++) {
+                 final String disabledOverlayPackageName = allOverlays.get(i).packageName;
+-                final PackageInfo disabledOverlayPackageInfo = mPackageManager.getPackageInfo(
+-                        disabledOverlayPackageName, userId);
++                final PackageInfoLite disabledOverlayPackageInfo =
++                    mPackageManager.getPackageInfoLite(disabledOverlayPackageName, userId);
+                 if (disabledOverlayPackageInfo == null) {
+                     modified |= mSettings.remove(disabledOverlayPackageName, userId);
+                     continue;
+@@ -447,7 +449,8 @@ final class OverlayManagerServiceImpl {
+     }
+ 
+     private boolean isPackageUpdatableOverlay(@NonNull final String packageName, final int userId) {
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null || overlayPackage.isStaticOverlay) {
+             return false;
+         }
+@@ -465,7 +468,8 @@ final class OverlayManagerServiceImpl {
+             return false;
+         }
+ 
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null) {
+             return false;
+         }
+@@ -485,7 +489,8 @@ final class OverlayManagerServiceImpl {
+             return false;
+         }
+ 
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null) {
+             return false;
+         }
+@@ -505,7 +510,8 @@ final class OverlayManagerServiceImpl {
+             return false;
+         }
+ 
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(packageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(packageName, userId);
+         if (overlayPackage == null) {
+             return false;
+         }
+@@ -542,8 +548,10 @@ final class OverlayManagerServiceImpl {
+             @NonNull final String overlayPackageName, final int userId, final int flags)
+             throws OverlayManagerSettings.BadKeyException {
+ 
+-        final PackageInfo targetPackage = mPackageManager.getPackageInfo(targetPackageName, userId);
+-        final PackageInfo overlayPackage = mPackageManager.getPackageInfo(overlayPackageName, userId);
++        final PackageInfoLite targetPackage =
++            mPackageManager.getPackageInfoLite(targetPackageName, userId);
++        final PackageInfoLite overlayPackage =
++            mPackageManager.getPackageInfoLite(overlayPackageName, userId);
+ 
+         // Static RROs targeting to "android", ie framework-res.apk, are handled by native layers.
+         if (targetPackage != null && overlayPackage != null &&
+@@ -554,7 +562,7 @@ final class OverlayManagerServiceImpl {
+         boolean modified = false;
+         if (overlayPackage != null) {
+             modified |= mSettings.setBaseCodePath(overlayPackageName, userId,
+-                    overlayPackage.applicationInfo.getBaseCodePath());
++                    overlayPackage.codePath);
+         }
+ 
+         final int currentState = mSettings.getState(overlayPackageName, userId);
+@@ -571,8 +579,8 @@ final class OverlayManagerServiceImpl {
+         return modified;
+     }
+ 
+-    private int calculateNewState(@Nullable final PackageInfo targetPackage,
+-            @Nullable final PackageInfo overlayPackage, final int userId, final int flags)
++    private int calculateNewState(@Nullable final PackageInfoLite targetPackage,
++            @Nullable final PackageInfoLite overlayPackage, final int userId, final int flags)
+         throws OverlayManagerSettings.BadKeyException {
+ 
+         // upgrade scenarios
+@@ -651,9 +659,9 @@ final class OverlayManagerServiceImpl {
+     }
+ 
+     interface PackageManagerHelper {
+-        PackageInfo getPackageInfo(@NonNull String packageName, int userId);
++        PackageInfoLite getPackageInfoLite(@NonNull String packageName, int userId);
+         boolean signaturesMatching(@NonNull String packageName1, @NonNull String packageName2,
+                                    int userId);
+-        List<PackageInfo> getOverlayPackages(int userId);
++        List<PackageInfoLite> getOverlayPackages(int userId);
+     }
+ }
+diff --git a/services/core/java/com/android/server/om/PackageInfoLite.java b/services/core/java/com/android/server/om/PackageInfoLite.java
+new file mode 100644
+index 00000000000..cde5e4f0ece
+--- /dev/null
++++ b/services/core/java/com/android/server/om/PackageInfoLite.java
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (C) 2017 The Android Open Source Project
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package com.android.server.om;
++
++import android.annotation.NonNull;
++import android.annotation.Nullable;
++
++final class PackageInfoLite {
++    public final String packageName;
++    public final String overlayTarget; // FIXME: should be overlayTargetPackageName
++    public final int uid;
++    public final boolean isStaticOverlay; // FIXME: should be removed
++    public final int overlayPriority; // FIXME: should be removed (and before that, renamed priority)
++    public final String codePath;
++
++    public PackageInfoLite(@NonNull final String packageName, @Nullable final String overlayTarget,
++            final int uid, final boolean isStaticOverlay, final int overlayPriority,
++            @NonNull final String codePath) {
++        this.packageName = packageName;
++        this.overlayTarget = overlayTarget;
++        this.uid = uid;
++        this.isStaticOverlay = isStaticOverlay;
++        this.overlayPriority = overlayPriority;
++        this.codePath = codePath;
++    }
++}
+diff --git a/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java b/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+index 66957a28fa3..71d4528b49c 100644
+--- a/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
++++ b/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+@@ -14,8 +14,6 @@ import static org.junit.Assert.assertTrue;
+ 
+ import android.annotation.NonNull;
+ import android.content.om.OverlayInfo;
+-import android.content.pm.ApplicationInfo;
+-import android.content.pm.PackageInfo;
+ import android.support.test.runner.AndroidJUnit4;
+ import android.util.ArraySet;
+ 
+@@ -398,20 +396,17 @@ public class OverlayManagerTests {
+         }
+ 
+         @Override
+-        public PackageInfo getPackageInfo(@NonNull String packageName, int userId) {
++        public PackageInfoLite getPackageInfoLite(@NonNull String packageName, int userId) {
+             final DummyState.Package pkg = mState.select(packageName, userId);
+             if (pkg == null) {
+                 return null;
+             }
+-            ApplicationInfo ai = new ApplicationInfo();
+-            ai.sourceDir = String.format("%s/%s/base.apk",
++            String codePath = String.format("%s/%s/base.apk",
+                     pkg.targetPackageName == null ? "/system/app/" : "/vendor/overlay/",
+                     pkg.packageName);
+-            PackageInfo pi = new PackageInfo();
+-            pi.applicationInfo = ai;
+-            pi.packageName = pkg.packageName;
+-            pi.overlayTarget = pkg.targetPackageName;
+-            return pi;
++            PackageInfoLite pil = new PackageInfoLite(pkg.packageName, pkg.targetPackageName,
++                    USER, false, 0, codePath);
++            return pil;
+         }
+ 
+         @Override
+@@ -421,14 +416,14 @@ public class OverlayManagerTests {
+         }
+ 
+         @Override
+-        public List<PackageInfo> getOverlayPackages(int userId) {
+-            List<PackageInfo> out = new ArrayList<>();
++        public List<PackageInfoLite> getOverlayPackages(int userId) {
++            List<PackageInfoLite> out = new ArrayList<>();
+             final List<DummyState.Package> pkgs = mState.select(userId);
+             final int N = pkgs.size();
+             for (int i = 0; i < N; i++) {
+                 final DummyState.Package pkg = pkgs.get(i);
+                 if (pkg.targetPackageName != null) {
+-                    out.add(getPackageInfo(pkg.packageName, pkg.userId));
++                    out.add(getPackageInfoLite(pkg.packageName, pkg.userId));
+                 }
+             }
+             return out;
+@@ -445,8 +440,8 @@ public class OverlayManagerTests {
+         }
+ 
+         @Override
+-        boolean createIdmap(@NonNull final PackageInfo targetPackage,
+-                @NonNull final PackageInfo overlayPackage, int userId) {
++        boolean createIdmap(@NonNull final PackageInfoLite targetPackage,
++                @NonNull final PackageInfoLite overlayPackage, int userId) {
+             final DummyState.Package t = mState.select(targetPackage.packageName, userId);
+             if (t == null) {
+                 return false;
+@@ -480,7 +475,7 @@ public class OverlayManagerTests {
+         }
+ 
+         @Override
+-        boolean idmapExists(@NonNull final PackageInfo overlayPackage, final int userId) {
++        boolean idmapExists(@NonNull final PackageInfoLite overlayPackage, final int userId) {
+             final String key = createKey(overlayPackage.packageName, userId);
+             return mIdmapFiles.contains(key);
+         }
+-- 
+2.14.1
+

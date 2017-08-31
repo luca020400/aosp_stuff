@@ -1,0 +1,30 @@
+From b01d8403ad5804f4d72e7eda7396537fe03311af Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Mon, 29 Feb 2016 14:12:35 +0100
+Subject: [PATCH 05/15] idmap: suppress print for padded resources
+
+Bug: 31052947
+Test: manual
+Change-Id: I13723bf8b1cdeecfd71750123eb1f949f96b7c3e
+---
+ cmds/idmap/inspect.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/cmds/idmap/inspect.cpp b/cmds/idmap/inspect.cpp
+index 154cb25a02a..20005e2766d 100644
+--- a/cmds/idmap/inspect.cpp
++++ b/cmds/idmap/inspect.cpp
+@@ -284,7 +284,9 @@ namespace {
+                 if (err != NO_ERROR) {
+                     return err;
+                 }
+-                print("", "entry", data32, "%s/%s", type.string(), name.string());
++                if (data32 != ResTable_type::NO_ENTRY) {
++                    print("", "entry", data32, "%s/%s", type.string(), name.string());
++                }
+             }
+         }
+ 
+-- 
+2.14.1
+

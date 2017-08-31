@@ -1,0 +1,31 @@
+From cb09cb82e6e0be8b9d9013b57e8db60db9ed3812 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Fri, 28 Apr 2017 13:10:11 +0200
+Subject: [PATCH 03/15] ResourcesManager: correct @NonNull -> @Nullable
+
+To clear all overlay packages, the caller of
+ResourcesManager#applyNewResourceDirsLocked will pass in null as the
+second argument. Fix typo where the argument's annotation misspelled
+@Nullable as @NonNull.
+
+Change-Id: I7218f17ac8f121924e722d3e00d3ebdc4d6f3382
+---
+ core/java/android/app/ResourcesManager.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/java/android/app/ResourcesManager.java b/core/java/android/app/ResourcesManager.java
+index 6f326de7615..80554fff75a 100644
+--- a/core/java/android/app/ResourcesManager.java
++++ b/core/java/android/app/ResourcesManager.java
+@@ -961,7 +961,7 @@ public class ResourcesManager {
+ 
+     // TODO(adamlesinski): Make this accept more than just overlay directories.
+     final void applyNewResourceDirsLocked(@NonNull final String baseCodePath,
+-            @NonNull final String[] newResourceDirs) {
++            @Nullable final String[] newResourceDirs) {
+         try {
+             Trace.traceBegin(Trace.TRACE_TAG_RESOURCES,
+                     "ResourcesManager#applyNewResourceDirsLocked");
+-- 
+2.14.1
+

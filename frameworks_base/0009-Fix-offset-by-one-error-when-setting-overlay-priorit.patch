@@ -1,0 +1,33 @@
+From 3599e3b7f3ebcb354b6e7e3e8064f4e02333d003 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Thu, 20 Apr 2017 13:42:28 +0200
+Subject: [PATCH 09/15] Fix offset-by-one error when setting overlay priority
+
+setPriority(A, B) used to change A's priority to just higher than B's,
+but in commit "OverlayManagerService: Make broadcasts/updates explicit"
+this was modified so that A's priority is set to just lower than B's.
+
+Revert the behaviour to the original since that is what is documented in
+IOverlayManager.aidl
+
+Change-Id: I5c8c14a318315b125ea05a822a79c64883a3020d
+---
+ services/core/java/com/android/server/om/OverlayManagerSettings.java | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/services/core/java/com/android/server/om/OverlayManagerSettings.java b/services/core/java/com/android/server/om/OverlayManagerSettings.java
+index c059b378474..7d00423a2c4 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerSettings.java
++++ b/services/core/java/com/android/server/om/OverlayManagerSettings.java
+@@ -230,7 +230,7 @@ final class OverlayManagerSettings {
+         }
+ 
+         mItems.remove(moveIdx);
+-        final int newParentIdx = select(newParentPackageName, userId);
++        final int newParentIdx = select(newParentPackageName, userId) + 1;
+         mItems.add(newParentIdx, itemToMove);
+         return moveIdx != newParentIdx;
+     }
+-- 
+2.14.1
+

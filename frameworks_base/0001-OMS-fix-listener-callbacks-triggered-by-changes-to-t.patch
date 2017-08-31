@@ -1,0 +1,56 @@
+From 58873c1e3c0793be3d2234aec4084b7fce1510e6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Mon, 26 Jun 2017 15:26:32 +0200
+Subject: [PATCH 01/15] OMS: fix listener callbacks triggered by changes to
+ target package
+
+The OverlayManagerListener connected to the OverlayManagerServiceImpl
+should be notified when and only when the overlay settings have been
+modified. The pattern used to fulfill this contract as a result of a
+change to a target package is as follows:
+
+    if (updateAllOverlaysForTarget(...)) {
+        mListener.onOverlaysChanged(...);
+    }
+
+Fix two violations of this pattern:
+
+  - The listener was always notified
+  - The listener was never notified
+
+Test: manual
+Change-Id: Id24a439e2eaaf976e8c7d650af36d58632cfb4ba
+---
+ .../java/com/android/server/om/OverlayManagerServiceImpl.java    | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+index db6e9749535..c3957f432f4 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
++++ b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+@@ -169,8 +169,9 @@ final class OverlayManagerServiceImpl {
+         }
+ 
+         final PackageInfo targetPackage = mPackageManager.getPackageInfo(packageName, userId);
+-        updateAllOverlaysForTarget(packageName, userId, targetPackage);
+-        mListener.onOverlaysChanged(packageName, userId);
++        if (updateAllOverlaysForTarget(packageName, userId, targetPackage)) {
++            mListener.onOverlaysChanged(packageName, userId);
++        }
+     }
+ 
+     void onTargetPackageChanged(@NonNull final String packageName, final int userId) {
+@@ -210,7 +211,9 @@ final class OverlayManagerServiceImpl {
+             Slog.d(TAG, "onTargetPackageRemoved packageName=" + packageName + " userId=" + userId);
+         }
+ 
+-        updateAllOverlaysForTarget(packageName, userId, null);
++        if (updateAllOverlaysForTarget(packageName, userId, null)) {
++            mListener.onOverlaysChanged(packageName, userId);
++        }
+     }
+ 
+     /**
+-- 
+2.14.1
+

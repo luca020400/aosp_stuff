@@ -1,0 +1,316 @@
+From 7f4c9d5817974c09be0df5cb0c8d7ff031b0379d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
+Date: Tue, 4 Jul 2017 09:50:26 +0200
+Subject: [PATCH 13/15] OMS: add security checks for user-installed overlays
+
+Restrict which overlays the system approves for use: for security
+reasons, don't allow user-installed overlays unless both target and
+overlay package are signed with the same certificate (which means they
+share the same author, which means the author could have made the
+modifications to the target package directly).
+
+Pre-installed overlays are always permitted, regardless of signature.
+
+Test: bit -t FrameworksServicesTests:com.android.server.om.{OverlayManagerSettingsTests,OverlayManagerTests,RuntimeResourceOverlayTests}
+Change-Id: Ib58a5bdb15cb84f823658841abad77e12ed1ddc6
+---
+ core/java/android/content/om/OverlayInfo.java      |  12 +++++++++++
+ .../server/om/OverlayManagerServiceImpl.java       |  11 ++++++++++
+ .../servicestests/res/raw/app_overlay_other_sig    | Bin 0 -> 4971 bytes
+ .../com/android/server/om/OverlayManagerTests.java |   2 +-
+ .../server/om/RuntimeResourceOverlayTests.java     |  11 ++++++++++
+ .../app_overlay_other_sig/AndroidManifest.xml      |   4 ++++
+ .../test-apks/app_overlay_other_sig/build          |  24 +++++++++++++++++++++
+ .../app_overlay_other_sig/res/values/values.xml    |   4 ++++
+ 8 files changed, 67 insertions(+), 1 deletion(-)
+ create mode 100644 services/tests/servicestests/res/raw/app_overlay_other_sig
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_other_sig/AndroidManifest.xml
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_other_sig/build
+ create mode 100644 services/tests/servicestests/test-apks/app_overlay_other_sig/res/values/values.xml
+
+diff --git a/core/java/android/content/om/OverlayInfo.java b/core/java/android/content/om/OverlayInfo.java
+index 47e12b232db..c89ea943077 100644
+--- a/core/java/android/content/om/OverlayInfo.java
++++ b/core/java/android/content/om/OverlayInfo.java
+@@ -58,6 +58,13 @@ public final class OverlayInfo implements Parcelable {
+      */
+     public static final int STATE_NO_IDMAP = 1;
+ 
++    /**
++     * Technically, the overlay could be used (i.e. the target is installed,
++     * there is an idmap file, etc) but for security reasons the overlay should
++     * not be used.
++     */
++    public static final int STATE_NOT_TRUSTED = 6;
++
+     /**
+      * The overlay is currently disabled. It can be enabled.
+      *
+@@ -102,6 +109,7 @@ public final class OverlayInfo implements Parcelable {
+      * @see #STATE_OVERLAY_UPGRADING
+      * @see #STATE_MISSING_TARGET
+      * @see #STATE_NO_IDMAP
++     * @see #STATE_NOT_TRUSTED
+      * @see #STATE_DISABLED
+      * @see #STATE_ENABLED
+      */
+@@ -160,6 +168,7 @@ public final class OverlayInfo implements Parcelable {
+             case STATE_OVERLAY_UPGRADING:
+             case STATE_MISSING_TARGET:
+             case STATE_NO_IDMAP:
++            case STATE_NOT_TRUSTED:
+             case STATE_DISABLED:
+             case STATE_ENABLED:
+                 break;
+@@ -220,6 +229,7 @@ public final class OverlayInfo implements Parcelable {
+      * @see #STATE_OVERLAY_UPGRADING
+      * @see #STATE_MISSING_TARGET
+      * @see #STATE_NO_IDMAP
++     * @see #STATE_NOT_TRUSTED
+      * @see #STATE_DISABLED
+      * @see #STATE_ENABLED
+      *
+@@ -237,6 +247,8 @@ public final class OverlayInfo implements Parcelable {
+                 return "STATE_MISSING_TARGET";
+             case STATE_NO_IDMAP:
+                 return "STATE_NO_IDMAP";
++            case STATE_NOT_TRUSTED:
++                return "STATE_NOT_TRUSTED";
+             case STATE_DISABLED:
+                 return "STATE_DISABLED";
+             case STATE_ENABLED:
+diff --git a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+index 7146c8cf8f3..1fd25a9ab93 100644
+--- a/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
++++ b/services/core/java/com/android/server/om/OverlayManagerServiceImpl.java
+@@ -19,6 +19,7 @@ package com.android.server.om;
+ import static android.content.om.OverlayInfo.STATE_DISABLED;
+ import static android.content.om.OverlayInfo.STATE_ENABLED;
+ import static android.content.om.OverlayInfo.STATE_MISSING_TARGET;
++import static android.content.om.OverlayInfo.STATE_NOT_TRUSTED;
+ import static android.content.om.OverlayInfo.STATE_NO_IDMAP;
+ import static android.content.om.OverlayInfo.STATE_OVERLAY_UPGRADING;
+ import static android.content.om.OverlayInfo.STATE_TARGET_UPGRADING;
+@@ -573,6 +574,8 @@ final class OverlayManagerServiceImpl {
+     private int calculateNewState(@Nullable final PackageInfo targetPackage,
+             @Nullable final PackageInfo overlayPackage, final int userId, final int flags)
+         throws OverlayManagerSettings.BadKeyException {
++
++        // upgrade scenarios
+         if ((flags & FLAG_TARGET_IS_UPGRADING) != 0) {
+             return STATE_TARGET_UPGRADING;
+         }
+@@ -586,6 +589,7 @@ final class OverlayManagerServiceImpl {
+             throw new IllegalArgumentException("null overlay package not compatible with no flags");
+         }
+ 
++        // technical checks
+         if (targetPackage == null) {
+             return STATE_MISSING_TARGET;
+         }
+@@ -594,6 +598,13 @@ final class OverlayManagerServiceImpl {
+             return STATE_NO_IDMAP;
+         }
+ 
++        // security checks
++        if (!mPackageManager.signaturesMatching(targetPackage.packageName,
++                    overlayPackage.packageName, userId)) {
++            return STATE_NOT_TRUSTED;
++        }
++
++        // overlay is ok to use
+         final boolean enabled = mSettings.getEnabled(overlayPackage.packageName, userId);
+         return enabled ? STATE_ENABLED : STATE_DISABLED;
+     }
+diff --git a/services/tests/servicestests/res/raw/app_overlay_other_sig b/services/tests/servicestests/res/raw/app_overlay_other_sig
+new file mode 100644
+index 0000000000000000000000000000000000000000..89dc6e567836d100664a607a0f84441a5922492b
+GIT binary patch
+literal 4971
+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
+M48WK~ZD&gV02A&I7ytkO
+
+literal 0
+HcmV?d00001
+
+diff --git a/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java b/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+index 954cde8bee6..66957a28fa3 100644
+--- a/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
++++ b/services/tests/servicestests/src/com/android/server/om/OverlayManagerTests.java
+@@ -417,7 +417,7 @@ public class OverlayManagerTests {
+         @Override
+         public boolean signaturesMatching(@NonNull String packageName1,
+                 @NonNull String packageName2, int userId) {
+-            return false;
++            return true;
+         }
+ 
+         @Override
+diff --git a/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java b/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java
+index 6a0d1936c1d..a334e879fa0 100644
+--- a/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java
++++ b/services/tests/servicestests/src/com/android/server/om/RuntimeResourceOverlayTests.java
+@@ -42,6 +42,7 @@ import org.xmlpull.v1.XmlPullParser;
+ public class RuntimeResourceOverlayTests {
+     private static final String APP_OVERLAY_1 = "com.android.rrotests.app_overlay_1";
+     private static final String APP_OVERLAY_2 = "com.android.rrotests.app_overlay_2";
++    private static final String APP_OVERLAY_OTHER_SIG = "com.android.rrotests.app_overlay_other_sig";
+     private static final String SYSTEM_OVERLAY_1 = "com.android.rrotests.system_overlay_1";
+     private static final String SYSTEM_OVERLAY_2 = "com.android.rrotests.system_overlay_2";
+     private static final String SOME_OTHER_APP = "com.android.rrotests.some_other_app";
+@@ -59,6 +60,7 @@ public class RuntimeResourceOverlayTests {
+     static {
+         OVERLAY_PACKAGES.put(APP_OVERLAY_1, R.raw.app_overlay_1);
+         OVERLAY_PACKAGES.put(APP_OVERLAY_2, R.raw.app_overlay_2);
++        OVERLAY_PACKAGES.put(APP_OVERLAY_OTHER_SIG, R.raw.app_overlay_other_sig);
+         OVERLAY_PACKAGES.put(SYSTEM_OVERLAY_1, R.raw.system_overlay_1);
+         OVERLAY_PACKAGES.put(SYSTEM_OVERLAY_2, R.raw.system_overlay_2);
+         OVERLAY_PACKAGES.put(SOME_OTHER_APP_OVERLAY, R.raw.some_other_app_overlay);
+@@ -99,10 +101,12 @@ public class RuntimeResourceOverlayTests {
+ 
+         OverlayUtils.disable(mContext, SYSTEM_OVERLAY_2, mUserId);
+         OverlayUtils.disable(mContext, SYSTEM_OVERLAY_1, mUserId);
++        OverlayUtils.disable(mContext, APP_OVERLAY_OTHER_SIG, mUserId);
+         OverlayUtils.disable(mContext, APP_OVERLAY_2, mUserId);
+         OverlayUtils.disable(mContext, APP_OVERLAY_1, mUserId);
+ 
+         OverlayUtils.reorder(mContext, APP_OVERLAY_1, APP_OVERLAY_2, mUserId);
++        OverlayUtils.reorder(mContext, APP_OVERLAY_2, APP_OVERLAY_OTHER_SIG, mUserId);
+         OverlayUtils.reorder(mContext, SYSTEM_OVERLAY_1, SYSTEM_OVERLAY_2, mUserId);
+     }
+ 
+@@ -493,6 +497,13 @@ public class RuntimeResourceOverlayTests {
+         }
+     }
+ 
++    @Test
++    public void testSecurityDoNotAllowOtherSignature() throws Exception {
++        assertResource(0, R.integer.i);
++        OverlayUtils.enable(mContext, APP_OVERLAY_OTHER_SIG, mUserId);
++        assertResource(0, R.integer.i); // resource should be unmodified
++    }
++
+     private void assertResource(boolean expected, int resid) throws Exception {
+         boolean actual = mResources.getBoolean(resid);
+         assertEquals(expected, actual);
+diff --git a/services/tests/servicestests/test-apks/app_overlay_other_sig/AndroidManifest.xml b/services/tests/servicestests/test-apks/app_overlay_other_sig/AndroidManifest.xml
+new file mode 100644
+index 00000000000..8ac84a8d301
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_other_sig/AndroidManifest.xml
+@@ -0,0 +1,4 @@
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.android.rrotests.app_overlay_other_sig">
++    <overlay android:targetPackage="com.android.frameworks.servicestests"/>
++</manifest>
+diff --git a/services/tests/servicestests/test-apks/app_overlay_other_sig/build b/services/tests/servicestests/test-apks/app_overlay_other_sig/build
+new file mode 100644
+index 00000000000..4260b68c4cc
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_other_sig/build
+@@ -0,0 +1,24 @@
++# source this script to regenerate this package as a resource in the test app
++
++compile()
++{
++    aapt package \
++        -M AndroidManifest.xml \
++        -S res \
++        -I "${OUT}"/system/framework/framework-res.apk \
++        -F /tmp/apk \
++        -f
++}
++
++sign()
++{
++    local T=$(gettop)
++    java -Djava.library.path="$(get_abs_build_var SIGNAPK_JNI_LIBRARY_PATH)" \
++        -jar "${ANDROID_HOST_OUT}"/framework/signapk.jar \
++        "${T}"/build/target/product/security/media.x509.pem \
++        "${T}"/build/target/product/security/media.pk8 \
++        /tmp/apk \
++        ../../res/raw/app_overlay_other_sig
++}
++
++compile && sign && rm -f /tmp/apk
+diff --git a/services/tests/servicestests/test-apks/app_overlay_other_sig/res/values/values.xml b/services/tests/servicestests/test-apks/app_overlay_other_sig/res/values/values.xml
+new file mode 100644
+index 00000000000..f371acaf12c
+--- /dev/null
++++ b/services/tests/servicestests/test-apks/app_overlay_other_sig/res/values/values.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <integer name="i">3</integer>
++</resources>
+-- 
+2.14.1
+
