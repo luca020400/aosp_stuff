@@ -1,4 +1,4 @@
-From bcc5d880886cd436ccffaa15f669fcf4a2f2dbdc Mon Sep 17 00:00:00 2001
+From 07563e0e3f74dc3d8b0b5f3a261925346e318bd4 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Tue, 14 Mar 2017 11:56:16 +0100
 Subject: [PATCH 11/15] Consolidate idmap path calculation
@@ -47,10 +47,10 @@ Change-Id: I5e57c7c19d68b47def1456767aa0db8d3a8e68b4
  22 files changed, 129 insertions(+), 141 deletions(-)
 
 diff --git a/core/java/android/app/ActivityThread.java b/core/java/android/app/ActivityThread.java
-index 01e4ccebe82..e1812afa6fd 100644
+index 45f7eba2af0..57244f958ce 100644
 --- a/core/java/android/app/ActivityThread.java
 +++ b/core/java/android/app/ActivityThread.java
-@@ -5116,7 +5116,7 @@ public final class ActivityThread {
+@@ -5070,7 +5070,7 @@ public final class ActivityThread {
          }
          synchronized (mResourcesManager) {
              // Update all affected Resources objects to use new ResourcesImpl
@@ -60,10 +60,10 @@ index 01e4ccebe82..e1812afa6fd 100644
  
          ApplicationPackageManager.configurationChanged();
 diff --git a/core/java/android/app/ApplicationPackageManager.java b/core/java/android/app/ApplicationPackageManager.java
-index e5c420876c8..b6fdecc9e84 100644
+index 0eafdec6bb0..e721129dade 100644
 --- a/core/java/android/app/ApplicationPackageManager.java
 +++ b/core/java/android/app/ApplicationPackageManager.java
-@@ -1363,7 +1363,7 @@ public class ApplicationPackageManager extends PackageManager {
+@@ -1378,7 +1378,7 @@ public class ApplicationPackageManager extends PackageManager {
          final Resources r = mContext.mMainThread.getTopLevelResources(
                      sameUid ? app.sourceDir : app.publicSourceDir,
                      sameUid ? app.splitSourceDirs : app.splitPublicSourceDirs,
@@ -73,10 +73,10 @@ index e5c420876c8..b6fdecc9e84 100644
          if (r != null) {
              return r;
 diff --git a/core/java/android/app/ContextImpl.java b/core/java/android/app/ContextImpl.java
-index 3ea0c83f2db..92de1266f61 100644
+index 5f3432264ca..64bfc8965bf 100644
 --- a/core/java/android/app/ContextImpl.java
 +++ b/core/java/android/app/ContextImpl.java
-@@ -1977,7 +1977,7 @@ class ContextImpl extends Context {
+@@ -1993,7 +1993,7 @@ class ContextImpl extends Context {
          return ResourcesManager.getInstance().getResources(activityToken,
                  pi.getResDir(),
                  splitResDirs,
@@ -85,7 +85,7 @@ index 3ea0c83f2db..92de1266f61 100644
                  pi.getApplicationInfo().sharedLibraryFiles,
                  displayId,
                  overrideConfig,
-@@ -2066,7 +2066,7 @@ class ContextImpl extends Context {
+@@ -2082,7 +2082,7 @@ class ContextImpl extends Context {
                  mActivityToken,
                  mPackageInfo.getResDir(),
                  paths,
@@ -94,7 +94,7 @@ index 3ea0c83f2db..92de1266f61 100644
                  mPackageInfo.getApplicationInfo().sharedLibraryFiles,
                  displayId,
                  null,
-@@ -2281,7 +2281,7 @@ class ContextImpl extends Context {
+@@ -2309,7 +2309,7 @@ class ContextImpl extends Context {
          context.setResources(resourcesManager.createBaseActivityResources(activityToken,
                  packageInfo.getResDir(),
                  splitDirs,
@@ -104,7 +104,7 @@ index 3ea0c83f2db..92de1266f61 100644
                  displayId,
                  overrideConfiguration,
 diff --git a/core/java/android/app/LoadedApk.java b/core/java/android/app/LoadedApk.java
-index 393909bbeef..594f09d9f57 100644
+index f6d9710dae6..57c51fd3612 100644
 --- a/core/java/android/app/LoadedApk.java
 +++ b/core/java/android/app/LoadedApk.java
 @@ -96,7 +96,7 @@ public final class LoadedApk {
@@ -113,19 +113,19 @@ index 393909bbeef..594f09d9f57 100644
      private String mResDir;
 -    private String[] mOverlayDirs;
 +    private String[] mIdmapPaths;
-     private String[] mSharedLibraries;
      private String mDataDir;
      private String mLibDir;
-@@ -192,7 +192,7 @@ public final class LoadedApk {
-         mResDir = null;
+     private File mDataDirFile;
+@@ -191,7 +191,7 @@ public final class LoadedApk {
          mSplitAppDirs = null;
          mSplitResDirs = null;
+         mSplitClassLoaderNames = null;
 -        mOverlayDirs = null;
 +        mIdmapPaths = null;
-         mSharedLibraries = null;
          mDataDir = null;
          mDataDirFile = null;
-@@ -310,7 +310,7 @@ public final class LoadedApk {
+         mDeviceProtectedDataDirFile = null;
+@@ -308,7 +308,7 @@ public final class LoadedApk {
                  }
  
                  mResources = ResourcesManager.getInstance().getResources(null, mResDir,
@@ -134,16 +134,16 @@ index 393909bbeef..594f09d9f57 100644
                          Display.DEFAULT_DISPLAY, null, getCompatibilityInfo(),
                          getClassLoader());
              }
-@@ -323,7 +323,7 @@ public final class LoadedApk {
+@@ -321,7 +321,7 @@ public final class LoadedApk {
          mApplicationInfo = aInfo;
          mAppDir = aInfo.sourceDir;
          mResDir = aInfo.uid == myUid ? aInfo.sourceDir : aInfo.publicSourceDir;
 -        mOverlayDirs = aInfo.resourceDirs;
 +        mIdmapPaths = aInfo.idmapPaths;
-         mSharedLibraries = aInfo.sharedLibraryFiles;
          mDataDir = aInfo.dataDir;
          mLibDir = aInfo.nativeLibraryDir;
-@@ -896,8 +896,8 @@ public final class LoadedApk {
+         mDataDirFile = FileUtils.newFileOrNull(aInfo.dataDir);
+@@ -914,8 +914,8 @@ public final class LoadedApk {
          return mSplitResDirs;
      }
  
@@ -154,7 +154,7 @@ index 393909bbeef..594f09d9f57 100644
      }
  
      public String getDataDir() {
-@@ -931,7 +931,7 @@ public final class LoadedApk {
+@@ -949,7 +949,7 @@ public final class LoadedApk {
              }
  
              mResources = ResourcesManager.getInstance().getResources(null, mResDir,
@@ -164,10 +164,10 @@ index 393909bbeef..594f09d9f57 100644
                      getClassLoader());
          }
 diff --git a/core/java/android/app/ResourcesManager.java b/core/java/android/app/ResourcesManager.java
-index 80554fff75a..e8d9f67f5fa 100644
+index fb11272d7e6..628d4922a3f 100644
 --- a/core/java/android/app/ResourcesManager.java
 +++ b/core/java/android/app/ResourcesManager.java
-@@ -293,8 +293,8 @@ public class ResourcesManager {
+@@ -291,8 +291,8 @@ public class ResourcesManager {
              }
          }
  
@@ -178,7 +178,7 @@ index 80554fff75a..e8d9f67f5fa 100644
                  assets.addOverlayPath(idmapPath);
              }
          }
-@@ -510,7 +510,7 @@ public class ResourcesManager {
+@@ -513,7 +513,7 @@ public class ResourcesManager {
       * @param activityToken Represents an Activity.
       * @param resDir The base resource path. Can be null (only framework resources will be loaded).
       * @param splitResDirs An array of split resource paths. Can be null.
@@ -187,7 +187,7 @@ index 80554fff75a..e8d9f67f5fa 100644
       * @param libDirs An array of resource library paths. Can be null.
       * @param displayId The ID of the display for which to create the resources.
       * @param overrideConfig The configuration to apply on top of the base configuration. Can be
-@@ -524,7 +524,7 @@ public class ResourcesManager {
+@@ -527,7 +527,7 @@ public class ResourcesManager {
      public @Nullable Resources createBaseActivityResources(@NonNull IBinder activityToken,
              @Nullable String resDir,
              @Nullable String[] splitResDirs,
@@ -196,7 +196,7 @@ index 80554fff75a..e8d9f67f5fa 100644
              @Nullable String[] libDirs,
              int displayId,
              @Nullable Configuration overrideConfig,
-@@ -536,7 +536,7 @@ public class ResourcesManager {
+@@ -539,7 +539,7 @@ public class ResourcesManager {
              final ResourcesKey key = new ResourcesKey(
                      resDir,
                      splitResDirs,
@@ -205,7 +205,7 @@ index 80554fff75a..e8d9f67f5fa 100644
                      libDirs,
                      displayId,
                      overrideConfig != null ? new Configuration(overrideConfig) : null, // Copy
-@@ -675,7 +675,7 @@ public class ResourcesManager {
+@@ -678,7 +678,7 @@ public class ResourcesManager {
       * @param activityToken Represents an Activity. If null, global resources are assumed.
       * @param resDir The base resource path. Can be null (only framework resources will be loaded).
       * @param splitResDirs An array of split resource paths. Can be null.
@@ -214,7 +214,7 @@ index 80554fff75a..e8d9f67f5fa 100644
       * @param libDirs An array of resource library paths. Can be null.
       * @param displayId The ID of the display for which to create the resources.
       * @param overrideConfig The configuration to apply on top of the base configuration. Can be
-@@ -690,7 +690,7 @@ public class ResourcesManager {
+@@ -693,7 +693,7 @@ public class ResourcesManager {
      public @Nullable Resources getResources(@Nullable IBinder activityToken,
              @Nullable String resDir,
              @Nullable String[] splitResDirs,
@@ -223,7 +223,7 @@ index 80554fff75a..e8d9f67f5fa 100644
              @Nullable String[] libDirs,
              int displayId,
              @Nullable Configuration overrideConfig,
-@@ -701,7 +701,7 @@ public class ResourcesManager {
+@@ -704,7 +704,7 @@ public class ResourcesManager {
              final ResourcesKey key = new ResourcesKey(
                      resDir,
                      splitResDirs,
@@ -232,7 +232,7 @@ index 80554fff75a..e8d9f67f5fa 100644
                      libDirs,
                      displayId,
                      overrideConfig != null ? new Configuration(overrideConfig) : null, // Copy
-@@ -803,7 +803,7 @@ public class ResourcesManager {
+@@ -806,7 +806,7 @@ public class ResourcesManager {
                      // Create the new ResourcesKey with the rebased override config.
                      final ResourcesKey newKey = new ResourcesKey(oldKey.mResDir,
                              oldKey.mSplitResDirs,
@@ -241,7 +241,7 @@ index 80554fff75a..e8d9f67f5fa 100644
                              rebasedOverrideConfig, oldKey.mCompatInfo);
  
                      if (DEBUG) {
-@@ -946,7 +946,7 @@ public class ResourcesManager {
+@@ -949,7 +949,7 @@ public class ResourcesManager {
                          updatedResourceKeys.put(impl, new ResourcesKey(
                                  key.mResDir,
                                  key.mSplitResDirs,
@@ -250,7 +250,7 @@ index 80554fff75a..e8d9f67f5fa 100644
                                  newLibAssets,
                                  key.mDisplayId,
                                  key.mOverrideConfiguration,
-@@ -960,11 +960,11 @@ public class ResourcesManager {
+@@ -963,11 +963,11 @@ public class ResourcesManager {
      }
  
      // TODO(adamlesinski): Make this accept more than just overlay directories.
@@ -265,7 +265,7 @@ index 80554fff75a..e8d9f67f5fa 100644
  
              final ArrayMap<ResourcesImpl, ResourcesKey> updatedResourceKeys = new ArrayMap<>();
              final int implCount = mResourceImpls.size();
-@@ -976,7 +976,7 @@ public class ResourcesManager {
+@@ -979,7 +979,7 @@ public class ResourcesManager {
                      updatedResourceKeys.put(impl, new ResourcesKey(
                              key.mResDir,
                              key.mSplitResDirs,
@@ -338,10 +338,10 @@ index 1a207ba055f..91bed74185b 100644
      }
  
 diff --git a/core/java/android/content/pm/ApplicationInfo.java b/core/java/android/content/pm/ApplicationInfo.java
-index 06f7916be4b..119f091b1a7 100644
+index 664bcbca6ab..31f861d4247 100644
 --- a/core/java/android/content/pm/ApplicationInfo.java
 +++ b/core/java/android/content/pm/ApplicationInfo.java
-@@ -693,13 +693,14 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+@@ -727,13 +727,14 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
      public SparseArray<int[]> splitDependencies;
  
      /**
@@ -360,7 +360,7 @@ index 06f7916be4b..119f091b1a7 100644
  
      /**
       * String retrieved from the seinfo tag found in selinux policy. This value
-@@ -1041,8 +1042,8 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+@@ -1081,8 +1082,8 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
                  && !Arrays.equals(splitSourceDirs, splitPublicSourceDirs)) {
              pw.println(prefix + "splitPublicSourceDirs=" + Arrays.toString(splitPublicSourceDirs));
          }
@@ -369,9 +369,9 @@ index 06f7916be4b..119f091b1a7 100644
 +        if (idmapPaths != null) {
 +            pw.println(prefix + "idmapPaths=" + Arrays.toString(idmapPaths));
          }
-         if ((flags&DUMP_FLAG_DETAILS) != 0 && seInfo != null) {
+         if ((dumpFlags & DUMP_FLAG_DETAILS) != 0 && seInfo != null) {
              pw.println(prefix + "seinfo=" + seInfo);
-@@ -1156,7 +1157,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+@@ -1203,7 +1204,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
          nativeLibraryRootRequiresIsa = orig.nativeLibraryRootRequiresIsa;
          primaryCpuAbi = orig.primaryCpuAbi;
          secondaryCpuAbi = orig.secondaryCpuAbi;
@@ -380,7 +380,7 @@ index 06f7916be4b..119f091b1a7 100644
          seInfo = orig.seInfo;
          seInfoUser = orig.seInfoUser;
          sharedLibraryFiles = orig.sharedLibraryFiles;
-@@ -1224,7 +1225,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+@@ -1273,7 +1274,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
          dest.writeInt(nativeLibraryRootRequiresIsa ? 1 : 0);
          dest.writeString(primaryCpuAbi);
          dest.writeString(secondaryCpuAbi);
@@ -389,7 +389,7 @@ index 06f7916be4b..119f091b1a7 100644
          dest.writeString(seInfo);
          dest.writeString(seInfoUser);
          dest.writeStringArray(sharedLibraryFiles);
-@@ -1289,7 +1290,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
+@@ -1340,7 +1341,7 @@ public class ApplicationInfo extends PackageItemInfo implements Parcelable {
          nativeLibraryRootRequiresIsa = source.readInt() != 0;
          primaryCpuAbi = source.readString();
          secondaryCpuAbi = source.readString();
@@ -399,10 +399,10 @@ index 06f7916be4b..119f091b1a7 100644
          seInfoUser = source.readString();
          sharedLibraryFiles = source.readStringArray();
 diff --git a/core/java/android/content/pm/PackageParser.java b/core/java/android/content/pm/PackageParser.java
-index c67376c2588..797531bbfd6 100644
+index cb9ecf3e2bd..7b4e69059e9 100644
 --- a/core/java/android/content/pm/PackageParser.java
 +++ b/core/java/android/content/pm/PackageParser.java
-@@ -1994,6 +1994,7 @@ public class PackageParser {
+@@ -2042,6 +2042,7 @@ public class PackageParser {
              String[] overlayPaths = mCallback.getOverlayPaths(pkgName, apkPath);
              if (overlayPaths != null && overlayPaths.length > 0) {
                  for (String overlayPath : overlayPaths) {
@@ -410,7 +410,7 @@ index c67376c2588..797531bbfd6 100644
                      res.getAssets().addOverlayPath(overlayPath);
                  }
              }
-@@ -6856,7 +6857,7 @@ public class PackageParser {
+@@ -7018,7 +7019,7 @@ public class PackageParser {
              ai.category = FallbackCategoryProvider.getFallbackCategory(ai.packageName);
          }
          ai.seInfoUser = SELinuxUtil.assignSeinfoUser(state);
@@ -420,10 +420,10 @@ index c67376c2588..797531bbfd6 100644
  
      public static ApplicationInfo generateApplicationInfo(Package p, int flags,
 diff --git a/core/java/android/content/pm/PackageUserState.java b/core/java/android/content/pm/PackageUserState.java
-index 470336cc70c..587cfdfc089 100644
+index 069b2d4e02b..65338244169 100644
 --- a/core/java/android/content/pm/PackageUserState.java
 +++ b/core/java/android/content/pm/PackageUserState.java
-@@ -55,7 +55,7 @@ public class PackageUserState {
+@@ -56,7 +56,7 @@ public class PackageUserState {
      public ArraySet<String> disabledComponents;
      public ArraySet<String> enabledComponents;
  
@@ -432,7 +432,7 @@ index 470336cc70c..587cfdfc089 100644
  
      public PackageUserState() {
          installed = true;
-@@ -83,8 +83,7 @@ public class PackageUserState {
+@@ -85,8 +85,7 @@ public class PackageUserState {
          installReason = o.installReason;
          disabledComponents = ArrayUtils.cloneOrNull(o.disabledComponents);
          enabledComponents = ArrayUtils.cloneOrNull(o.enabledComponents);
@@ -803,10 +803,10 @@ index 7d00423a2c4..e756d891872 100644
              return mCache;
          }
 diff --git a/services/core/java/com/android/server/pm/Installer.java b/services/core/java/com/android/server/pm/Installer.java
-index c95b5c557b3..e890e5823bb 100644
+index 371b3ef5f55..c843fbfbc7b 100644
 --- a/services/core/java/com/android/server/pm/Installer.java
 +++ b/services/core/java/com/android/server/pm/Installer.java
-@@ -310,20 +310,20 @@ public class Installer extends SystemService {
+@@ -320,20 +320,20 @@ public class Installer extends SystemService {
          }
      }
  
@@ -832,10 +832,10 @@ index c95b5c557b3..e890e5823bb 100644
              throw InstallerException.from(e);
          }
 diff --git a/services/core/java/com/android/server/pm/PackageManagerService.java b/services/core/java/com/android/server/pm/PackageManagerService.java
-index 9e4ba8b4144..dff49198be1 100644
+index 06600bf75ff..c98243ee13f 100644
 --- a/services/core/java/com/android/server/pm/PackageManagerService.java
 +++ b/services/core/java/com/android/server/pm/PackageManagerService.java
-@@ -273,6 +273,7 @@ import com.android.server.SystemConfig;
+@@ -281,6 +281,7 @@ import com.android.server.SystemConfig;
  import com.android.server.SystemServerInitThreadPool;
  import com.android.server.Watchdog;
  import com.android.server.net.NetworkPolicyManagerInternal;
@@ -843,7 +843,7 @@ index 9e4ba8b4144..dff49198be1 100644
  import com.android.server.pm.Installer.InstallerException;
  import com.android.server.pm.PermissionsState.PermissionState;
  import com.android.server.pm.Settings.DatabaseVersion;
-@@ -807,9 +808,10 @@ public class PackageManagerService extends IPackageManager.Stub
+@@ -832,9 +833,10 @@ public class PackageManagerService extends IPackageManager.Stub
                      //
                      // OverlayManagerService will update each of them with a correct gid from its
                      // target package app id.
@@ -857,7 +857,7 @@ index 9e4ba8b4144..dff49198be1 100644
                      if (overlayPathList == null) {
                          overlayPathList = new ArrayList<String>();
                      }
-@@ -24604,29 +24606,14 @@ Slog.v(TAG, ":: stepped forward, applying functor at tag " + parser.getName());
+@@ -25513,29 +25515,14 @@ Slog.v(TAG, ":: stepped forward, applying functor at tag " + parser.getName());
  
          @Override
          public boolean setEnabledOverlayPackages(int userId, @NonNull String targetPackageName,
@@ -890,7 +890,7 @@ index 9e4ba8b4144..dff49198be1 100644
              }
          }
 diff --git a/services/core/java/com/android/server/pm/PackageSettingBase.java b/services/core/java/com/android/server/pm/PackageSettingBase.java
-index f6851275845..1f8229663ec 100644
+index d3ca1fda5ca..8511fc9a82e 100644
 --- a/services/core/java/com/android/server/pm/PackageSettingBase.java
 +++ b/services/core/java/com/android/server/pm/PackageSettingBase.java
 @@ -330,13 +330,13 @@ abstract class PackageSettingBase extends SettingBase {
@@ -913,12 +913,12 @@ index f6851275845..1f8229663ec 100644
  
      /** Only use for testing. Do NOT use in production code. */
 diff --git a/services/core/java/com/android/server/pm/Settings.java b/services/core/java/com/android/server/pm/Settings.java
-index 45d0c585627..5f64b552f03 100644
+index 56835f69a3c..6c108863b4d 100644
 --- a/services/core/java/com/android/server/pm/Settings.java
 +++ b/services/core/java/com/android/server/pm/Settings.java
-@@ -4859,10 +4859,10 @@ final class Settings {
-             pw.print(" instant=");
-             pw.println(ps.getInstantApp(user.id));
+@@ -4871,10 +4871,10 @@ final class Settings {
+             pw.print(" virtual=");
+             pw.println(ps.getVirtulalPreload(user.id));
  
 -            String[] overlayPaths = ps.getOverlayPaths(user.id);
 -            if (overlayPaths != null && overlayPaths.length > 0) {
@@ -984,7 +984,7 @@ index e13e8610856..67760e0bb5f 100644
                  0);
          insert(otherTarget);
 diff --git a/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java b/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java
-index 0e8960e94c5..74743eee262 100644
+index fa8feb048fd..fe0d4f4e134 100644
 --- a/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java
 +++ b/services/tests/servicestests/src/com/android/server/pm/PackageParserTest.java
 @@ -407,7 +407,7 @@ public class PackageParserTest {
@@ -997,5 +997,5 @@ index 0e8960e94c5..74743eee262 100644
          assertTrue(Arrays.equals(a.sharedLibraryFiles, that.sharedLibraryFiles));
          assertEquals(a.dataDir, that.dataDir);
 -- 
-2.14.1
+2.15.1
 

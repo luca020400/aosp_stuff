@@ -1,4 +1,4 @@
-From 371f0971b2c9f6f4d19b31c28f2f55616e819f5f Mon Sep 17 00:00:00 2001
+From 0f3e3ee763e748b1dec0aa76dbcaf9cc726c04e1 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Thu, 1 Oct 2015 13:37:03 +0200
 Subject: [PATCH 10/15] OMS: tests for OverlayManagerService
@@ -111,10 +111,10 @@ Change-Id: Ia8c3cd3b62c0daae61de243d78318572d9ea82fa
  create mode 100644 services/tests/servicestests/test-apks/system_overlay_2/res/values/values.xml
 
 diff --git a/services/tests/servicestests/AndroidManifest.xml b/services/tests/servicestests/AndroidManifest.xml
-index e12032d8d4c..020222abe13 100644
+index 59d205ecab7..96bb7dab7e7 100644
 --- a/services/tests/servicestests/AndroidManifest.xml
 +++ b/services/tests/servicestests/AndroidManifest.xml
-@@ -51,6 +51,7 @@
+@@ -50,6 +50,7 @@
      <uses-permission android:name="android.permission.CHANGE_CONFIGURATION" />
      <uses-permission android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE" />
      <uses-permission android:name="android.permission.DELETE_PACKAGES" />
@@ -3067,5 +3067,5 @@ index 00000000000..30b0f532110
 +    <bool name="config_annoy_dianne">true</bool>
 +</resources>
 -- 
-2.14.1
+2.15.1
 

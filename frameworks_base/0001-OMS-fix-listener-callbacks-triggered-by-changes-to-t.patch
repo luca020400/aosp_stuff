@@ -1,4 +1,4 @@
-From 58873c1e3c0793be3d2234aec4084b7fce1510e6 Mon Sep 17 00:00:00 2001
+From 6d70029227290acb2f7ccaade9399fc961e74194 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Mon, 26 Jun 2017 15:26:32 +0200
 Subject: [PATCH 01/15] OMS: fix listener callbacks triggered by changes to
@@ -52,5 +52,5 @@ index db6e9749535..c3957f432f4 100644
  
      /**
 -- 
-2.14.1
+2.15.1
 

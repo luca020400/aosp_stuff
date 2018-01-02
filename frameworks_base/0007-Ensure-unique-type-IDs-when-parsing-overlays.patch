@@ -1,4 +1,4 @@
-From 39bf9ca07a6cc4d7f6ad70586192a769dedfe293 Mon Sep 17 00:00:00 2001
+From 26d807e9a4aea2ab198db61dca3492ec14aa71dc Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Tue, 23 Feb 2016 14:26:51 +0100
 Subject: [PATCH 07/15] Ensure unique type IDs when parsing overlays
@@ -21,10 +21,10 @@ Change-Id: I059f2e8848dff685b5160fbd7ae20b8dfc64b1e5
  2 files changed, 41 insertions(+), 3 deletions(-)
 
 diff --git a/libs/androidfw/ResourceTypes.cpp b/libs/androidfw/ResourceTypes.cpp
-index a6307e45129..d09115f8609 100644
+index 7a0ef2b770c..008528d067b 100644
 --- a/libs/androidfw/ResourceTypes.cpp
 +++ b/libs/androidfw/ResourceTypes.cpp
-@@ -6306,8 +6306,9 @@ status_t ResTable::parsePackage(const ResTable_package* const pkg,
+@@ -6307,8 +6307,9 @@ status_t ResTable::parsePackage(const ResTable_package* const pkg,
  
      uint32_t id = dtohl(pkg->id);
      KeyedVector<uint8_t, IdmapEntries> idmapEntries;
@@ -35,7 +35,7 @@ index a6307e45129..d09115f8609 100644
          uint8_t targetPackageId = 0;
          status_t err = parseIdmap(header->resourceIDMap, header->resourceIDMapSize, &targetPackageId, &idmapEntries);
          if (err != NO_ERROR) {
-@@ -6435,6 +6436,7 @@ status_t ResTable::parsePackage(const ResTable_package* const pkg,
+@@ -6436,6 +6437,7 @@ status_t ResTable::parsePackage(const ResTable_package* const pkg,
                  bool addToType = true;
                  uint8_t typeIndex = typeSpec->id - 1;
                  ssize_t idmapIndex = idmapEntries.indexOfKey(typeSpec->id);
@@ -43,7 +43,7 @@ index a6307e45129..d09115f8609 100644
                  if (idmapIndex >= 0) {
                      typeIndex = idmapEntries[idmapIndex].targetTypeId() - 1;
                  } else if (header->resourceIDMap != NULL) {
-@@ -6513,6 +6515,7 @@ status_t ResTable::parsePackage(const ResTable_package* const pkg,
+@@ -6514,6 +6516,7 @@ status_t ResTable::parsePackage(const ResTable_package* const pkg,
                  bool addToType = true;
                  uint8_t typeIndex = type->id - 1;
                  ssize_t idmapIndex = idmapEntries.indexOfKey(type->id);
@@ -51,7 +51,7 @@ index a6307e45129..d09115f8609 100644
                  if (idmapIndex >= 0) {
                      typeIndex = idmapEntries[idmapIndex].targetTypeId() - 1;
                  } else if (header->resourceIDMap != NULL) {
-@@ -6847,6 +6850,41 @@ status_t ResTable::createIdmap(const ResTable& overlay,
+@@ -6848,6 +6851,41 @@ status_t ResTable::createIdmap(const ResTable& overlay,
          return UNKNOWN_ERROR;
      }
  
@@ -93,7 +93,7 @@ index a6307e45129..d09115f8609 100644
      if ((*outData = malloc(*outSize)) == NULL) {
          return NO_MEMORY;
      }
-@@ -6862,7 +6900,7 @@ status_t ResTable::createIdmap(const ResTable& overlay,
+@@ -6863,7 +6901,7 @@ status_t ResTable::createIdmap(const ResTable& overlay,
          const char* path = paths[j];
          const size_t I = strlen(path);
          if (I > 255) {
@@ -116,5 +116,5 @@ index 66c66c251d9..df8538ec5a9 100644
      // Retrieve idmap meta-data.
      //
 -- 
-2.14.1
+2.15.1
 

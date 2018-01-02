@@ -1,4 +1,4 @@
-From b256d018a842e0bc2f7fea29157fb85ec0738132 Mon Sep 17 00:00:00 2001
+From 0354ec64cd4041cc2c8e9373548fe9baccf014ee Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Tue, 4 Jul 2017 17:02:33 +0200
 Subject: [PATCH 14/15] OMS: introduce lightweight PackageInfo wrapper
@@ -655,5 +655,5 @@ index 66957a28fa3..71d4528b49c 100644
              return mIdmapFiles.contains(key);
          }
 -- 
-2.14.1
+2.15.1
 

@@ -1,4 +1,4 @@
-From a7c2d28cf83a33aeebe7d260b34904ee01ca060e Mon Sep 17 00:00:00 2001
+From b6a2291e98078cd0afac299e658a9e3635fc6799 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Fri, 16 Dec 2016 10:47:16 +0100
 Subject: [PATCH 08/15] Add test packages for runtime resource overlay
@@ -1304,5 +1304,5 @@ index 00000000000..dd6ed5bcc45
 +    }
 +}
 -- 
-2.14.1
+2.15.1
 

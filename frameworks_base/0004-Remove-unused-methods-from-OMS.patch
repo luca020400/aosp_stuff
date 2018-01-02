@@ -1,4 +1,4 @@
-From 7fceaf3b03c4bb4c748b7129b12aadcf23fc3a7a Mon Sep 17 00:00:00 2001
+From 11b467c4e3a5d76011111c54b1a9e4078bd59aa2 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Thu, 26 Jan 2017 09:54:21 +0100
 Subject: [PATCH 04/15] Remove unused methods from OMS
@@ -49,5 +49,5 @@ index 04d91f882d0..807c343d0d1 100644
 -    }
  }
 -- 
-2.14.1
+2.15.1
 

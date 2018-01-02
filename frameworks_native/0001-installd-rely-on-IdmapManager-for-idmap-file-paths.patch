@@ -1,4 +1,4 @@
-From dad19ddfea68763d229b7445779bf24146fb1030 Mon Sep 17 00:00:00 2001
+From 53efab5e1d188a4444ec47de1f9c06b20d1d28ac Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Mon, 13 Mar 2017 14:31:02 +0100
 Subject: [PATCH] installd: rely on IdmapManager for idmap file paths
@@ -23,7 +23,7 @@ Change-Id: I5e57c7c19d68b47def1456767aa0db8d3a8e68b4
  3 files changed, 13 insertions(+), 60 deletions(-)
 
 diff --git a/cmds/installd/InstalldNativeService.cpp b/cmds/installd/InstalldNativeService.cpp
-index 60c89a97b..112c7a45a 100644
+index 8a79ee17a..2aa3c22af 100644
 --- a/cmds/installd/InstalldNativeService.cpp
 +++ b/cmds/installd/InstalldNativeService.cpp
 @@ -79,8 +79,6 @@ static constexpr const char* CACHE_DIR_POSTFIX = "/cache";
@@ -35,7 +35,7 @@ index 60c89a97b..112c7a45a 100644
  
  // NOTE: keep in sync with Installer
  static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
-@@ -1999,61 +1997,21 @@ static bool delete_stale_idmap(const char* target_apk, const char* overlay_apk,
+@@ -2030,61 +2028,21 @@ static bool delete_stale_idmap(const char* target_apk, const char* overlay_apk,
      return false;
  }
  
@@ -102,7 +102,7 @@ index 60c89a97b..112c7a45a 100644
      if (stat(idmap_path, &idmap_stat) < 0) {
          outdated = true;
      } else {
-@@ -2121,15 +2079,9 @@ fail:
+@@ -2152,15 +2110,9 @@ fail:
      return error();
  }
  
@@ -121,10 +121,10 @@ index 60c89a97b..112c7a45a 100644
          ALOGE("couldn't unlink idmap file %s\n", idmap_path);
          return error();
 diff --git a/cmds/installd/InstalldNativeService.h b/cmds/installd/InstalldNativeService.h
-index 401131517..bf20764cf 100644
+index c8db3df5b..fad2ca1db 100644
 --- a/cmds/installd/InstalldNativeService.h
 +++ b/cmds/installd/InstalldNativeService.h
-@@ -94,9 +94,9 @@ public:
+@@ -96,9 +96,9 @@ public:
      binder::Status clearAppProfiles(const std::string& packageName);
      binder::Status destroyAppProfiles(const std::string& packageName);
  
@@ -138,10 +138,10 @@ index 401131517..bf20764cf 100644
      binder::Status markBootComplete(const std::string& instructionSet);
      binder::Status freeCache(const std::unique_ptr<std::string>& uuid, int64_t targetFreeBytes,
 diff --git a/cmds/installd/binder/android/os/IInstalld.aidl b/cmds/installd/binder/android/os/IInstalld.aidl
-index f09a3975d..2bbbf407d 100644
+index 452a2b193..dedd985dd 100644
 --- a/cmds/installd/binder/android/os/IInstalld.aidl
 +++ b/cmds/installd/binder/android/os/IInstalld.aidl
-@@ -60,8 +60,9 @@ interface IInstalld {
+@@ -62,8 +62,9 @@ interface IInstalld {
      void clearAppProfiles(@utf8InCpp String packageName);
      void destroyAppProfiles(@utf8InCpp String packageName);
  
@@ -154,5 +154,5 @@ index f09a3975d..2bbbf407d 100644
      void markBootComplete(@utf8InCpp String instructionSet);
      void freeCache(@nullable @utf8InCpp String uuid, long targetFreeBytes,
 -- 
-2.14.1
+2.15.1
 

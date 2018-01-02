@@ -1,4 +1,4 @@
-From 3599e3b7f3ebcb354b6e7e3e8064f4e02333d003 Mon Sep 17 00:00:00 2001
+From 0adc8d64747ba31f9746505728b6c5c99f7cabab Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Thu, 20 Apr 2017 13:42:28 +0200
 Subject: [PATCH 09/15] Fix offset-by-one error when setting overlay priority
@@ -29,5 +29,5 @@ index c059b378474..7d00423a2c4 100644
          return moveIdx != newParentIdx;
      }
 -- 
-2.14.1
+2.15.1
 

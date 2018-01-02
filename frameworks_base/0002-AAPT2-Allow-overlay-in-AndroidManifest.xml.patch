@@ -1,4 +1,4 @@
-From a6098bf2d4bb0626fd8179f66e1fcabe2847e004 Mon Sep 17 00:00:00 2001
+From 4bbf2b5b58c65ea4a563cd178ab8499c02b10fe0 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Fri, 9 Dec 2016 00:23:41 +0100
 Subject: [PATCH 02/15] AAPT2: Allow <overlay> in AndroidManifest.xml
@@ -11,7 +11,7 @@ Change-Id: I96b7340a53a7d4f1ca022065674fbf5bdaa273f2
  1 file changed, 1 insertion(+)
 
 diff --git a/tools/aapt2/link/ManifestFixer.cpp b/tools/aapt2/link/ManifestFixer.cpp
-index 53c66a62856..f0ac467bdd1 100644
+index a0ffefad1e1..6fb1793d90e 100644
 --- a/tools/aapt2/link/ManifestFixer.cpp
 +++ b/tools/aapt2/link/ManifestFixer.cpp
 @@ -293,6 +293,7 @@ bool ManifestFixer::BuildRules(xml::XmlActionExecutor* executor,
@@ -23,5 +23,5 @@ index 53c66a62856..f0ac467bdd1 100644
    manifest_action["uses-permission"];
    manifest_action["uses-permission-sdk-23"];
 -- 
-2.14.1
+2.15.1
 
