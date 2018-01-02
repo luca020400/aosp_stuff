@@ -1,4 +1,4 @@
-From e944ab13fe2a387dee49b3814ebc6c0feb0a1990 Mon Sep 17 00:00:00 2001
+From ccdd575ed34e9422491da4e7e8f65adce8c48a24 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Tue, 4 Jul 2017 09:50:26 +0200
 Subject: [PATCH 13/15] OMS: add security checks for user-installed overlays

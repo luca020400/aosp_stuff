@@ -1,4 +1,4 @@
-From 0354ec64cd4041cc2c8e9373548fe9baccf014ee Mon Sep 17 00:00:00 2001
+From 072b2fcf710e1af3df5d75b478341588ddf550ce Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?M=C3=A5rten=20Kongstad?= <marten.kongstad@sony.com>
 Date: Tue, 4 Jul 2017 17:02:33 +0200
 Subject: [PATCH 14/15] OMS: introduce lightweight PackageInfo wrapper
